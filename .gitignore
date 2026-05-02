@@ -1,1 +1,50 @@
+# ── Environment & secrets ──
 .env
+.env.*
+!.env.example
+
+# ── Dependencies ──
+node_modules/
+
+# ── Next.js (dashboard) ──
+dashboard/.next/
+dashboard/out/
+
+# ── Python (backend) ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+backend/.venv/
+
+# ── PlatformIO (firmware) ──
+firmware/.pio/
+firmware/.vscode/
+
+# ── Storage (local dev) ──
+*.db
+*.sqlite
+chroma_data/
+
+# ── OS junk ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ──
+.idea/
+*.swp
+*.swo
+
+# ── Build artifacts ──
+dist/
+build/
+*.egg-info/
+
+# ── Logs ──
+*.log
+npm-debug.log*
+
+# ── Test fixtures (binary, keep tracked ones) ──
+# backend/tests/fixtures/ is tracked intentionally
+backend/tests/test_tts_output.pcm
