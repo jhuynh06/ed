@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "autoApprove": ["resolve-library-id", "get-library-docs"],
+      "disabled": false
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "disabled": false
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "disabled": false
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-fetch"],
+      "disabled": false
+    },
+    "chroma": {
+      "command": "C:\\Users\\jason\\.local\\bin\\uvx.exe",
+      "args": ["chroma-mcp@latest"],
+      "env": {
+        "CHROMA_HOST": "localhost",
+        "CHROMA_PORT": "8001",
+        "CHROMA_CLIENT_TYPE": "http"
+      },
+      "disabled": false
+    },
+    "aws-docs": {
+      "command": "C:\\Users\\jason\\.local\\bin\\uvx.exe",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false
+    }
+  }
+}
