@@ -1,7 +1,11 @@
-"""Audio pipeline: Silero VAD → Groq Whisper → wav2vec2 emotion.
+"""Audio pipeline: Silero VAD → Local Whisper → wav2vec2 emotion.
 
 Accepts 16kHz mono PCM frames (numpy int16 or float32).
 Returns AudioResult with transcription and vocal emotion scores.
+
+Whisper runs locally using OpenAI's whisper package — no API keys needed
+for transcription. Uses the direct numpy→mel→decode pipeline from
+transcribe.py (no temp WAV files).
 """
 
 from __future__ import annotations
@@ -17,9 +21,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 from dotenv import load_dotenv
-from groq import Groq
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+import whisper
 from silero_vad import load_silero_vad, get_speech_timestamps
 from transformers import pipeline as hf_pipeline
 
@@ -35,6 +39,13 @@ FRAME_SIZE = 512          # samples per VAD frame (32ms at 16kHz)
 VAD_CHECK_INTERVAL = 5    # run VAD every N frames (160ms) instead of every frame
 SPEECH_END_FRAMES = 8     # frames of trailing silence before firing inference (~256ms)
 
+# ── Local Whisper config ─────────────────────────────────────────────
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "tiny.en")
+WHISPER_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+WHISPER_FP16 = WHISPER_DEVICE == "cuda"
+SILENCE_THRESHOLD = 0.01
+MIN_AUDIO_LENGTH_S = 0.3  # minimum seconds of audio to bother transcribing
+
 
 @dataclass
 class AudioResult:
@@ -49,18 +60,46 @@ class AudioResult:
     language: str = "en"   # detected language from Whisper
 
 
+def _trim_silence(audio: np.ndarray, threshold: float = SILENCE_THRESHOLD,
+                   frame_size: int = 1600) -> np.ndarray:
+    """Trim leading and trailing silence to reduce transcription time."""
+    n_frames = len(audio) // frame_size
+    if n_frames == 0:
+        return audio
+    frames = audio[:n_frames * frame_size].reshape(n_frames, frame_size)
+    rms = np.sqrt(np.mean(frames ** 2, axis=1))
+    active = np.where(rms > threshold)[0]
+    if len(active) == 0:
+        return np.array([], dtype=np.float32)
+    start = max(0, active[0] * frame_size - frame_size)
+    end = min(len(audio), (active[-1] + 2) * frame_size)
+    return audio[start:end]
+
+
 class AudioPipeline:
     """Stateful pipeline: accumulates frames, gates on VAD, runs inference.
 
+    Whisper runs locally — no API keys needed for transcription.
     The wav2vec2 emotion model (1.27GB) is loaded in a background thread
-    so the pipeline can start processing audio immediately.  Transcription
-    and acoustic features work right away; emotion scores default to
-    neutral until the model is ready.
+    so the pipeline can start processing audio immediately.
     """
 
     def __init__(self) -> None:
         self._vad_model = load_silero_vad()
-        self._groq = Groq(api_key=os.environ["GROQ_API_KEY"])
+
+        # Load local Whisper model
+        logger.info("Loading Whisper '%s' on %s...", WHISPER_MODEL_SIZE, WHISPER_DEVICE)
+        self._whisper = whisper.load_model(WHISPER_MODEL_SIZE, device=WHISPER_DEVICE)
+        logger.info("Whisper loaded (%dM params)",
+                     sum(p.numel() for p in self._whisper.parameters()) // 1_000_000)
+
+        # Warm up Whisper with 1s of silence (first inference is always slower)
+        dummy = whisper.pad_or_trim(np.zeros(SAMPLE_RATE, dtype=np.float32))
+        mel = whisper.log_mel_spectrogram(dummy, n_mels=self._whisper.dims.n_mels).to(WHISPER_DEVICE)
+        whisper.decode(self._whisper, mel, whisper.DecodingOptions(
+            language="en", without_timestamps=True, fp16=WHISPER_FP16,
+        ))
+        logger.info("Whisper warm-up complete")
 
         # Emotion model loads in background — None until ready
         self._emotion_pipe = None
@@ -135,26 +174,45 @@ class AudioPipeline:
         return self._run_inference(audio)
 
     def _run_inference(self, audio: np.ndarray) -> AudioResult:
-        """Run Whisper + wav2vec2 on a speech segment."""
-        wav_bytes = _to_wav_bytes(audio)
+        """Run local Whisper + wav2vec2 on a speech segment.
 
-        # Groq Whisper transcription — language=None for auto-detect
+        Uses the direct numpy→mel→decode pipeline (no temp WAV file).
+        """
+        # Trim silence before transcription
+        trimmed = _trim_silence(audio)
+        if trimmed.size == 0 or len(trimmed) / SAMPLE_RATE < MIN_AUDIO_LENGTH_S:
+            return AudioResult(speech_detected=False)
+
+        # Clamp to 30s (Whisper's native segment size)
+        max_samples = 30 * SAMPLE_RATE
+        if len(trimmed) > max_samples:
+            trimmed = trimmed[:max_samples]
+
+        # Local Whisper: numpy → mel spectrogram → decode
         transcription = ""
         detected_lang = "en"
         try:
-            result = self._groq.audio.transcriptions.create(
-                file=("audio.wav", wav_bytes, "audio/wav"),
-                model="whisper-large-v3-turbo",
-                response_format="verbose_json",
+            padded = whisper.pad_or_trim(trimmed)
+            mel = whisper.log_mel_spectrogram(
+                padded, n_mels=self._whisper.dims.n_mels
+            ).to(WHISPER_DEVICE)
+
+            options = whisper.DecodingOptions(
+                language="en",
+                without_timestamps=True,
+                fp16=WHISPER_FP16,
+                beam_size=None,       # greedy decoding (fastest)
+                best_of=None,
+                temperature=0.0,      # deterministic
             )
+            result = whisper.decode(self._whisper, mel, options)
             transcription = result.text.strip()
-            # Whisper returns full names like "English", "Chinese" — map to ISO codes
-            raw_lang = (getattr(result, "language", "") or "").lower()
-            _LANG_MAP = {
-                "english": "en", "en": "en",
-                "chinese": "zh", "mandarin": "zh", "zh": "zh",
-            }
-            detected_lang = _LANG_MAP.get(raw_lang, "en")
+
+            # Filter Whisper hallucinations on near-silence
+            if result.no_speech_prob > 0.6:
+                transcription = ""
+
+            detected_lang = "en"  # using .en model variant
         except Exception as e:
             transcription = f"[transcription error: {e}]"
 

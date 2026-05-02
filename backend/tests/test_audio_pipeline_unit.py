@@ -30,10 +30,22 @@ groq_stub = types.ModuleType("groq")
 groq_stub.Groq = MagicMock()
 sys.modules["groq"] = groq_stub
 
+# whisper — stub so audio_pipeline doesn't need the real model in unit tests
+whisper_stub = types.ModuleType("whisper")
+whisper_stub.load_model = MagicMock(return_value=MagicMock(dims=MagicMock(n_mels=80), parameters=MagicMock(return_value=[])))
+whisper_stub.pad_or_trim = lambda x: x
+whisper_stub.log_mel_spectrogram = MagicMock(return_value=MagicMock(to=MagicMock(return_value=MagicMock())))
+whisper_stub.decode = MagicMock(return_value=MagicMock(text="test transcription", no_speech_prob=0.0))
+whisper_stub.DecodingOptions = MagicMock()
+sys.modules["whisper"] = whisper_stub
+
 # torch — only stub if real torch not already loaded
 if "torch" not in sys.modules or not hasattr(sys.modules["torch"], "Tensor"):
     torch_stub = types.ModuleType("torch")
     torch_stub.from_numpy = lambda x: x
+    cuda_stub = MagicMock()
+    cuda_stub.is_available = MagicMock(return_value=False)
+    torch_stub.cuda = cuda_stub
     sys.modules["torch"] = torch_stub
 
 # sentence_transformers — stub so NLPExtractor doesn't download models
@@ -72,7 +84,9 @@ def make_pipeline() -> AudioPipeline:
     """Return an AudioPipeline with all external deps mocked."""
     p = AudioPipeline.__new__(AudioPipeline)
     p._vad_model = MagicMock()
-    p._groq = MagicMock()
+    # Mock local whisper: decode returns an object with .text and .no_speech_prob
+    p._whisper = MagicMock()
+    p._whisper.dims.n_mels = 80
     p._emotion_pipe = MagicMock(return_value=[
         {"label": "neutral", "score": 0.8},
         {"label": "sad", "score": 0.2},
@@ -93,6 +107,14 @@ def make_pipeline() -> AudioPipeline:
     p._buffer = []
     p._frame_count = 0
     return p
+
+
+def set_whisper_text(p: AudioPipeline, text: str, no_speech_prob: float = 0.0) -> None:
+    """Configure the whisper stub to return the given transcription."""
+    mock_result = MagicMock()
+    mock_result.text = text
+    mock_result.no_speech_prob = no_speech_prob
+    whisper_stub.decode = MagicMock(return_value=mock_result)
 
 
 def silence(n_frames: int = 1) -> np.ndarray:
@@ -182,9 +204,7 @@ def test_push_frame_active_speech_returns_none():
 def test_push_frame_speech_ended_calls_inference():
     """When VAD reports speech ended, inference fires and buffer clears."""
     p = make_pipeline()
-    mock_tx = MagicMock()
-    mock_tx.text = "I love you grandma"
-    p._groq.audio.transcriptions.create.return_value = mock_tx
+    set_whisper_text(p, "I love you grandma")
 
     audio = speech_audio(1.0)
     total_samples = len(audio)
@@ -221,9 +241,7 @@ def test_push_frame_speech_ended_calls_inference():
 
 def test_process_clip_returns_result():
     p = make_pipeline()
-    mock_tx = MagicMock()
-    mock_tx.text = "everything is okay"
-    p._groq.audio.transcriptions.create.return_value = mock_tx
+    set_whisper_text(p, "everything is okay")
 
     result = p.process_clip(speech_audio(0.5))
 
@@ -231,9 +249,9 @@ def test_process_clip_returns_result():
     assert result.transcription == "everything is okay"
 
 
-def test_process_clip_handles_groq_error():
+def test_process_clip_handles_whisper_error():
     p = make_pipeline()
-    p._groq.audio.transcriptions.create.side_effect = Exception("API error")
+    whisper_stub.decode = MagicMock(side_effect=Exception("decode error"))
 
     result = p.process_clip(speech_audio(0.5))
 
@@ -243,9 +261,7 @@ def test_process_clip_handles_groq_error():
 
 def test_process_clip_handles_emotion_error():
     p = make_pipeline()
-    mock_tx = MagicMock()
-    mock_tx.text = "hello"
-    p._groq.audio.transcriptions.create.return_value = mock_tx
+    set_whisper_text(p, "hello")
     p._emotion_pipe.side_effect = Exception("model error")
 
     result = p.process_clip(speech_audio(0.5))
@@ -321,9 +337,7 @@ def test_fixture_calm_speech_low_arousal():
     p = make_pipeline()
     # Override emotion pipe to return calm prediction
     p._emotion_pipe.return_value = [{"label": "calm", "score": 0.9}, {"label": "neutral", "score": 0.1}]
-    mock_tx = MagicMock()
-    mock_tx.text = "everything is okay"
-    p._groq.audio.transcriptions.create.return_value = mock_tx
+    set_whisper_text(p, "everything is okay")
 
     audio = load_fixture("calm_speech.wav")
     result = p.process_clip(audio)
@@ -338,9 +352,7 @@ def test_fixture_distressed_speech_high_arousal():
     """Distressed speech fixture should produce high arousal score."""
     p = make_pipeline()
     p._emotion_pipe.return_value = [{"label": "fearful", "score": 0.8}, {"label": "sad", "score": 0.2}]
-    mock_tx = MagicMock()
-    mock_tx.text = "I don't know where I am"
-    p._groq.audio.transcriptions.create.return_value = mock_tx
+    set_whisper_text(p, "I don't know where I am")
 
     audio = load_fixture("distressed_speech.wav")
     result = p.process_clip(audio)
