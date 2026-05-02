@@ -12,6 +12,9 @@ import hashlib
 import os
 from collections import OrderedDict
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import anthropic
 
 from app.agents.state import AgentState

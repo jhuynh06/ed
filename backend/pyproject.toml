@@ -22,6 +22,8 @@ dependencies = [
     "tokenizers==0.22.2",
     "sounddevice>=0.5.1",
     "python-multipart>=0.0.27",
+    "librosa>=0.11.0",
+    "sentence-transformers>=5.4.1",
 ]
 
 [project.optional-dependencies]

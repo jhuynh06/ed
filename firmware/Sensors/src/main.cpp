@@ -1,32 +1,50 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <ArduinoJson.h>
 #include <math.h>
 
 // ============================================================
-// MPU6050 Accelerometer (Shake Detection)
+// Configuration
+// ============================================================
+namespace Config {
+  // How often to send a JSON sensor packet over serial (ms)
+  constexpr unsigned long SEND_INTERVAL_MS = 250;  // 4 Hz
+}
+
+// ============================================================
+// MPU6050 Accelerometer
 // ============================================================
 namespace Accel {
   constexpr uint8_t MPU_ADDR = 0x68;
-
   constexpr int SDA_PIN = 21;
   constexpr int SCL_PIN = 22;
 
   constexpr uint8_t REG_PWR_MGMT_1   = 0x6B;
   constexpr uint8_t REG_WHO_AM_I     = 0x75;
   constexpr uint8_t REG_ACCEL_XOUT_H = 0x3B;
-
   constexpr uint8_t WHO_AM_I_EXPECTED = 0x68;
-  constexpr float ACCEL_LSB_PER_G = 16384.0f;   // default +/-2g
+  constexpr float ACCEL_LSB_PER_G = 16384.0f;
 
-  // Tuning
-  constexpr float CHANGE_THRESHOLD_G = 0.25f;   // per-axis change threshold
-  constexpr unsigned long SAMPLE_MS = 10;        // 100 Hz
-  constexpr unsigned long COOLDOWN_MS = 200;     // min time between prints
+  constexpr unsigned long SAMPLE_MS = 10;  // 100 Hz internal
 
   bool initialized = false;
-  float lastAx = 0.0f, lastAy = 0.0f, lastAz = 0.0f;
   unsigned long lastSampleMs = 0;
-  unsigned long lastTriggerMs = 0;
+
+  float ax = 0.0f, ay = 0.0f, az = 0.0f;
+
+  // Derived features
+  float jerkMagnitude = 0.0f;
+  float prevMag = 1.0f;
+  unsigned long stillnessStartMs = 0;
+  float stillnessDurationS = 0.0f;
+  bool rockingDetected = false;
+  bool hugDetected = false;
+  bool fallDetected = false;
+
+  // Rocking detection via zero-crossings
+  constexpr int JERK_HISTORY_SIZE = 20;
+  float jerkHistory[JERK_HISTORY_SIZE] = {0};
+  int jerkIdx = 0;
 
   bool writeRegister8(uint8_t reg, uint8_t value) {
     Wire.beginTransmission(MPU_ADDR);
@@ -36,149 +54,90 @@ namespace Accel {
   }
 
   bool readRegisters(uint8_t startReg, uint8_t *buffer, size_t len) {
-    if (buffer == nullptr || len == 0U) {
-      return false;
-    }
-
+    if (!buffer || len == 0) return false;
     Wire.beginTransmission(MPU_ADDR);
     Wire.write(startReg);
-
-    if (Wire.endTransmission(false) != 0) {
-      return false;
-    }
-
-    const size_t received = Wire.requestFrom(MPU_ADDR, len);
-    if (received != len) {
-      return false;
-    }
-
+    if (Wire.endTransmission(false) != 0) return false;
+    if (Wire.requestFrom(MPU_ADDR, len) != len) return false;
     for (size_t i = 0; i < len; ++i) {
-      const int value = Wire.read();
-      if (value < 0) {
-        return false;
-      }
-      buffer[i] = static_cast<uint8_t>(value);
+      int v = Wire.read();
+      if (v < 0) return false;
+      buffer[i] = (uint8_t)v;
     }
-
     return true;
   }
 
-  int16_t joinBytes(uint8_t highByte, uint8_t lowByte) {
-    return static_cast<int16_t>(
-      (static_cast<uint16_t>(highByte) << 8) |
-      static_cast<uint16_t>(lowByte)
-    );
+  int16_t joinBytes(uint8_t h, uint8_t l) {
+    return (int16_t)((uint16_t)h << 8 | (uint16_t)l);
   }
 
-  bool readAccelG(float &ax_g, float &ay_g, float &az_g) {
+  bool readAccelG(float &ox, float &oy, float &oz) {
     uint8_t raw[6] = {0};
-
-    if (!readRegisters(REG_ACCEL_XOUT_H, raw, sizeof(raw))) {
-      return false;
-    }
-
-    const int16_t ax = joinBytes(raw[0], raw[1]);
-    const int16_t ay = joinBytes(raw[2], raw[3]);
-    const int16_t az = joinBytes(raw[4], raw[5]);
-
-    ax_g = static_cast<float>(ax) / ACCEL_LSB_PER_G;
-    ay_g = static_cast<float>(ay) / ACCEL_LSB_PER_G;
-    az_g = static_cast<float>(az) / ACCEL_LSB_PER_G;
-
+    if (!readRegisters(REG_ACCEL_XOUT_H, raw, 6)) return false;
+    ox = (float)joinBytes(raw[0], raw[1]) / ACCEL_LSB_PER_G;
+    oy = (float)joinBytes(raw[2], raw[3]) / ACCEL_LSB_PER_G;
+    oz = (float)joinBytes(raw[4], raw[5]) / ACCEL_LSB_PER_G;
     return true;
   }
 
   void init() {
-    Serial.println("Initializing MPU6050...");
-
-    if (!Wire.setPins(SDA_PIN, SCL_PIN)) {
-      Serial.println("Wire.setPins failed - accelerometer disabled");
-      return;
-    }
-
-    if (!Wire.begin()) {
-      Serial.println("Wire.begin failed - accelerometer disabled");
-      return;
-    }
-
+    Serial.println("[Accel] Initializing MPU6050...");
+    if (!Wire.setPins(SDA_PIN, SCL_PIN)) { Serial.println("[Accel] setPins failed"); return; }
+    if (!Wire.begin()) { Serial.println("[Accel] Wire.begin failed"); return; }
     Wire.setClock(400000);
     Wire.setTimeOut(50);
 
-    if (!writeRegister8(REG_PWR_MGMT_1, 0x00)) {
-      Serial.println("Failed to wake MPU6050 - accelerometer disabled");
-      return;
-    }
-
+    if (!writeRegister8(REG_PWR_MGMT_1, 0x00)) { Serial.println("[Accel] wake failed"); return; }
     delay(100);
 
     uint8_t whoAmI = 0;
-    if (!readRegisters(REG_WHO_AM_I, &whoAmI, 1U)) {
-      Serial.println("Failed to read WHO_AM_I - accelerometer disabled");
-      return;
-    }
+    if (!readRegisters(REG_WHO_AM_I, &whoAmI, 1)) { Serial.println("[Accel] WHO_AM_I failed"); return; }
+    if (whoAmI != WHO_AM_I_EXPECTED) { Serial.printf("[Accel] wrong ID: 0x%02X\n", whoAmI); return; }
 
-    Serial.print("WHO_AM_I = 0x");
-    Serial.println(whoAmI, HEX);
-
-    if (whoAmI != WHO_AM_I_EXPECTED) {
-      Serial.println("MPU6050 not found at 0x68 - accelerometer disabled");
-      return;
-    }
-
-    float ax = 0.0f, ay = 0.0f, az = 0.0f;
-    if (readAccelG(ax, ay, az)) {
-      lastAx = ax;
-      lastAy = ay;
-      lastAz = az;
-    }
-
+    readAccelG(ax, ay, az);
+    prevMag = sqrtf(ax*ax + ay*ay + az*az);
+    stillnessStartMs = millis();
     initialized = true;
-    Serial.println("MPU6050 ready.");
+    Serial.println("[Accel] MPU6050 ready.");
   }
 
   void update() {
-    if (!initialized) {
-      return;
-    }
-
-    const unsigned long now = millis();
-
-    if (now - lastSampleMs < SAMPLE_MS) {
-      return;
-    }
+    if (!initialized) return;
+    unsigned long now = millis();
+    if (now - lastSampleMs < SAMPLE_MS) return;
     lastSampleMs = now;
 
-    float ax = 0.0f, ay = 0.0f, az = 0.0f;
+    float nx, ny, nz;
+    if (!readAccelG(nx, ny, nz)) return;
 
-    if (!readAccelG(ax, ay, az)) {
-      return;
+    float mag = sqrtf(nx*nx + ny*ny + nz*nz);
+    float jerk = fabsf(mag - prevMag);
+    prevMag = mag;
+
+    jerkMagnitude = jerkMagnitude * 0.7f + jerk * 0.3f;
+
+    if (jerkMagnitude < 0.02f) {
+      stillnessDurationS = (float)(now - stillnessStartMs) / 1000.0f;
+    } else {
+      stillnessStartMs = now;
+      stillnessDurationS = 0.0f;
     }
 
-    const float dx = fabsf(ax - lastAx);
-    const float dy = fabsf(ay - lastAy);
-    const float dz = fabsf(az - lastAz);
+    fallDetected = (mag < 0.3f) || (jerk > 2.5f);
 
-    if ((dx > CHANGE_THRESHOLD_G || dy > CHANGE_THRESHOLD_G || dz > CHANGE_THRESHOLD_G)
-        && (now - lastTriggerMs) > COOLDOWN_MS) {
-      Serial.print("ACCEL CHANGE: dX=");
-      Serial.print(dx, 3);
-      Serial.print("g dY=");
-      Serial.print(dy, 3);
-      Serial.print("g dZ=");
-      Serial.print(dz, 3);
-      Serial.print("g  (X=");
-      Serial.print(ax, 2);
-      Serial.print(" Y=");
-      Serial.print(ay, 2);
-      Serial.print(" Z=");
-      Serial.print(az, 2);
-      Serial.println(")");
-      lastTriggerMs = now;
+    jerkHistory[jerkIdx] = mag - 1.0f;
+    jerkIdx = (jerkIdx + 1) % JERK_HISTORY_SIZE;
+    int zeroCrossings = 0;
+    for (int i = 1; i < JERK_HISTORY_SIZE; i++) {
+      if ((jerkHistory[i-1] >= 0 && jerkHistory[i] < 0) ||
+          (jerkHistory[i-1] < 0 && jerkHistory[i] >= 0)) {
+        zeroCrossings++;
+      }
     }
+    rockingDetected = (zeroCrossings >= 6) && (jerkMagnitude > 0.05f) && (jerkMagnitude < 0.8f);
+    hugDetected = (fabsf(nx) > 0.3f && fabsf(ny) > 0.3f && stillnessDurationS > 1.5f);
 
-    lastAx = ax;
-    lastAy = ay;
-    lastAz = az;
+    ax = nx; ay = ny; az = nz;
   }
 }
 
@@ -192,38 +151,49 @@ namespace Touch {
     bool currentState;
     bool lastState;
     unsigned long lastChangeTime;
+    unsigned long pressStartMs;
   };
 
   constexpr unsigned long DEBOUNCE_MS = 40;
 
   TouchSensor sensors[] = {
-    {"front left",  13, false, false, 0},
-    {"front right", 12, false, false, 0},
-    {"back left",   14, false, false, 0},
-    {"back right",  27, false, false, 0},
-    {"upper back",  26, false, false, 0},
-    {"lower back",  25, false, false, 0},
-    {"upper chest", 33, false, false, 0},
-    {"lower chest", 32, false, false, 0}
+    {"front_left",  13, false, false, 0, 0},
+    {"front_right", 12, false, false, 0, 0},
+    {"back_left",   14, false, false, 0, 0},
+    {"back_right",  27, false, false, 0, 0},
+    {"upper_back",  26, false, false, 0, 0},
+    {"lower_back",  25, false, false, 0, 0},
+    {"upper_chest", 33, false, false, 0, 0},
+    {"lower_chest", 32, false, false, 0, 0}
   };
 
   constexpr size_t SENSOR_COUNT = sizeof(sensors) / sizeof(sensors[0]);
 
-  void init() {
-    Serial.println("Initializing touch sensors...");
+  bool anyContact = false;
+  float squeezeIntensity = 0.0f;
+  float gripDurationS = 0.0f;
+  bool pettingDetected = false;
+  int activePadCount = 0;
 
+  unsigned long lastActivationMs = 0;
+  int sequentialActivations = 0;
+
+  void init() {
+    Serial.println("[Touch] Initializing sensors...");
     for (size_t i = 0; i < SENSOR_COUNT; i++) {
       pinMode(sensors[i].pin, INPUT);
       sensors[i].currentState = digitalRead(sensors[i].pin);
       sensors[i].lastState = sensors[i].currentState;
       sensors[i].lastChangeTime = millis();
+      sensors[i].pressStartMs = 0;
     }
-
-    Serial.println("Touch sensors ready.");
+    Serial.println("[Touch] Ready.");
   }
 
   void update() {
-    const unsigned long now = millis();
+    unsigned long now = millis();
+    activePadCount = 0;
+    float longestGrip = 0.0f;
 
     for (size_t i = 0; i < SENSOR_COUNT; i++) {
       bool rawState = digitalRead(sensors[i].pin);
@@ -236,17 +206,81 @@ namespace Touch {
       if ((now - sensors[i].lastChangeTime) > DEBOUNCE_MS) {
         if (sensors[i].currentState != rawState) {
           sensors[i].currentState = rawState;
-
-          if (sensors[i].currentState == HIGH) {
-            Serial.print("TOUCHED: ");
-            Serial.println(sensors[i].name);
-          } else {
-            Serial.print("RELEASED: ");
-            Serial.println(sensors[i].name);
+          if (rawState == HIGH) {
+            sensors[i].pressStartMs = now;
+            if (now - lastActivationMs < 500) {
+              sequentialActivations++;
+            } else {
+              sequentialActivations = 1;
+            }
+            lastActivationMs = now;
           }
         }
       }
+
+      if (sensors[i].currentState == HIGH) {
+        activePadCount++;
+        float dur = (float)(now - sensors[i].pressStartMs) / 1000.0f;
+        if (dur > longestGrip) longestGrip = dur;
+      }
     }
+
+    anyContact = (activePadCount > 0);
+    squeezeIntensity = (float)activePadCount / (float)SENSOR_COUNT;
+    gripDurationS = longestGrip;
+    pettingDetected = (sequentialActivations >= 3) && (now - lastActivationMs < 1000);
+
+    if (now - lastActivationMs > 1500) {
+      sequentialActivations = 0;
+      pettingDetected = false;
+    }
+  }
+}
+
+// ============================================================
+// Serial JSON Output
+// ============================================================
+namespace Output {
+  unsigned long lastSendMs = 0;
+
+  void send() {
+    unsigned long now = millis();
+    if (now - lastSendMs < Config::SEND_INTERVAL_MS) return;
+    lastSendMs = now;
+
+    JsonDocument doc;
+    doc["type"] = "sensor_data";
+    doc["ts"] = (double)millis() / 1000.0;
+
+    JsonObject imu = doc["imu"].to<JsonObject>();
+    imu["jerk_magnitude"] = Accel::jerkMagnitude;
+    imu["hug_detected"] = Accel::hugDetected;
+    imu["fall_detected"] = Accel::fallDetected;
+    imu["tremor_power"] = 0.0;
+    imu["rocking_detected"] = Accel::rockingDetected;
+    imu["stillness_duration_s"] = Accel::stillnessDurationS;
+
+    JsonObject hr = doc["hr"].to<JsonObject>();
+    hr["bpm"] = 0;
+    hr["spo2"] = 0;
+    hr["valid"] = false;
+    hr["baseline_bpm"] = 72.0;
+    hr["elevation_pct"] = 0.0;
+
+    JsonObject touch = doc["touch"].to<JsonObject>();
+    touch["any_contact"] = Touch::anyContact;
+    touch["squeeze_intensity"] = Touch::squeezeIntensity;
+    touch["petting_detected"] = Touch::pettingDetected;
+    touch["grip_duration_s"] = Touch::gripDurationS;
+    JsonArray pads = touch["active_pads"].to<JsonArray>();
+    for (size_t i = 0; i < Touch::SENSOR_COUNT; i++) {
+      if (Touch::sensors[i].currentState == HIGH) {
+        pads.add((int)i);
+      }
+    }
+
+    serializeJson(doc, Serial);
+    Serial.println();  // newline delimiter
   }
 }
 
@@ -257,16 +291,12 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  Serial.println();
-  Serial.println("=== Combined Sensor System ===");
-
   Accel::init();
   Touch::init();
-
-  Serial.println("All systems ready.");
 }
 
 void loop() {
   Accel::update();
   Touch::update();
+  Output::send();
 }
