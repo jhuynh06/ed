@@ -2,6 +2,7 @@
 
 Endpoints:
   WS  /ws/bear                — ESP32 sensor stream + command dispatch
+  WS  /ws/audio               — ESP32 audio stream from AudioBridge
   GET /sse/events             — SSE live updates for dashboard
   GET /status                 — current agitation score + bear connection state
   GET /episodes               — episode list with MAR traces
@@ -27,20 +28,24 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import base64
+import json
 import logging
 import os
+import struct
 import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
 
 import aiosqlite
+import numpy as np
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.agents.graph import build_ed_graph
+from app.audio_pipeline import AudioPipeline, AudioResult
 from app.daily_digest import DigestInput, generate_digest
 from app.models import (
     AgitationUpdateEvent,
@@ -285,6 +290,117 @@ async def bear_websocket(ws: WebSocket):
     except WebSocketDisconnect:
         _last_status["bear_connected"] = False
         logger.info("Bear disconnected")
+
+
+# ── WebSocket — Audio Stream from ESP32 via AudioBridge ──────────────
+
+# Audio pipeline instance (stateful for VAD)
+_audio_pipeline: AudioPipeline | None = None
+_audio_bridge_connected: bool = False
+
+
+def _get_audio_pipeline() -> AudioPipeline:
+    """Lazy-load audio pipeline to avoid startup cost if not used."""
+    global _audio_pipeline
+    if _audio_pipeline is None:
+        _audio_pipeline = AudioPipeline()
+    return _audio_pipeline
+
+
+@app.websocket("/ws/audio")
+async def audio_websocket(ws: WebSocket):
+    """
+    Receives audio from ESP32 via AudioBridge.
+    
+    Protocol:
+      - Binary messages: Raw 16-bit PCM audio at 16kHz (512 samples = 1024 bytes)
+      - JSON messages: Control messages (hello, device_connected, etc.)
+    
+    Processes audio through the pipeline (VAD → Whisper → emotion) and
+    publishes results to the event bus for dashboard updates.
+    """
+    global _audio_bridge_connected
+    
+    await ws.accept()
+    _audio_bridge_connected = True
+    logger.info("AudioBridge connected")
+    
+    pipeline = _get_audio_pipeline()
+    
+    try:
+        while True:
+            try:
+                message = await ws.receive()
+            except RuntimeError:
+                # Client already disconnected
+                break
+            
+            if message.get("type") == "websocket.disconnect":
+                break
+            
+            if "bytes" in message:
+                # Raw PCM audio chunk from ESP32
+                pcm_bytes = message["bytes"]
+                
+                # Convert bytes to numpy int16 array
+                num_samples = len(pcm_bytes) // 2
+                samples = np.array(
+                    struct.unpack(f"<{num_samples}h", pcm_bytes),
+                    dtype=np.int16
+                )
+                
+                # Push through audio pipeline (VAD + inference when speech ends)
+                result = pipeline.push_frame(samples)
+                
+                if result and result.speech_detected:
+                    # Speech segment processed — log and publish
+                    logger.info(
+                        f"Audio: '{result.transcription[:50]}...' "
+                        f"emotion={result.dominant_emotion} "
+                        f"lang={result.language}"
+                    )
+                    
+                    # Publish transcription event for dashboard
+                    await event_bus.publish({
+                        "type": "transcription",
+                        "text": result.transcription,
+                        "emotion": result.dominant_emotion,
+                        "valence": result.valence,
+                        "arousal": result.arousal,
+                        "language": result.language,
+                        "timestamp": time.time(),
+                    })
+                    
+                    # If high arousal detected, could trigger agitation update
+                    if result.arousal > 0.6:
+                        await event_bus.publish(NotificationEvent(
+                            message=f"Elevated vocal arousal detected: {result.dominant_emotion}",
+                            priority="info",
+                        ))
+                    
+            elif "text" in message:
+                # JSON control message
+                try:
+                    data = json.loads(message["text"])
+                    msg_type = data.get("type")
+                    
+                    if msg_type == "bridge_hello":
+                        logger.info(f"AudioBridge hello: sample_rate={data.get('sample_rate')}")
+                        
+                    elif msg_type == "device_connected":
+                        logger.info(f"ESP32 audio device connected: {data}")
+                        
+                    elif msg_type == "device_disconnected":
+                        logger.info("ESP32 audio device disconnected")
+                        
+                except json.JSONDecodeError:
+                    pass
+                    
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    finally:
+        _audio_bridge_connected = False
+        logger.info("AudioBridge disconnected")
 
 
 # ── SSE — Dashboard live feed ────────────────────────────────────────
