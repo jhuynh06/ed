@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Source_Serif_4, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
+import { PatientProvider } from '@/lib/patient-context'
+import { PatientSidebar } from '@/components/patient-sidebar'
 
 const sourceSerif = Source_Serif_4({
   subsets: ['latin'],
@@ -35,7 +37,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sourceSerif.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable}`}>
       <body>
-        {children}
+        <PatientProvider>
+          <PatientSidebar />
+          {children}
+        </PatientProvider>
       </body>
     </html>
   )

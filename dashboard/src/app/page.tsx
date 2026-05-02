@@ -1,25 +1,38 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Mic, Play, Pause, Plus, Check, X, Send, ArrowRight } from 'lucide-react'
+import { usePatient } from '@/lib/patient-context'
+import { Mic, Play, Pause, Plus, Check, X, Send } from 'lucide-react'
 
 /* ─── Topbar ─────────────────────────────────────────────── */
 function Topbar({ connected }: { connected: boolean }) {
-  const now = new Date()
-  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' })
-  const timeOfDay = now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'
+  const { active, toggleSidebar } = usePatient()
+  const [timeLabel, setTimeLabel] = useState('')
+
+  useEffect(() => {
+    const now = new Date()
+    const dayName = now.toLocaleDateString('en-US', { weekday: 'long' })
+    const hour = now.getHours()
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+    setTimeLabel(`${dayName} ${timeOfDay}`)
+  }, [])
 
   return (
     <div className="flex items-center justify-between px-1">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-[var(--ink)] text-[var(--paper)] flex items-center justify-center font-serif text-[17px] tracking-tight">
-          T
-        </div>
+        <button
+          onClick={toggleSidebar}
+          className="w-9 h-9 rounded-[10px] bg-[var(--ink)] text-[var(--paper)] flex items-center justify-center font-serif text-[17px] tracking-tight cursor-pointer border-0 hover:opacity-80 transition-opacity"
+          aria-label="Open patient roster"
+          title="Switch patient"
+        >
+          {active.avatar}
+        </button>
         <div>
-          <div className="micro">Caregiver dashboard</div>
+          <div className="micro">Caregiver dashboard · {active.name}</div>
           <h1 className="font-serif text-[24px] font-normal tracking-tight leading-tight m-0">
-            Theodore <span className="text-[var(--ink-3)] font-light">· {dayName} {timeOfDay}</span>
+            {active.companion} <span className="text-[var(--ink-3)] font-light">· {timeLabel || 'loading'}</span>
           </h1>
         </div>
       </div>
@@ -30,13 +43,9 @@ function Topbar({ connected }: { connected: boolean }) {
         </div>
         <Link
           href="/analysis"
-          className="no-underline inline-flex items-center gap-2.5 px-5 py-3 rounded-full text-[13.5px] font-medium text-[var(--paper)] border border-[oklch(0.18_0.012_60)]"
-          style={{
-            background: 'linear-gradient(135deg, var(--ink) 0%, oklch(0.32 0.02 60) 100%)',
-            boxShadow: '0 1px 0 oklch(1 0 0 / 0.06) inset, 0 8px 24px -10px oklch(0.20 0.012 60 / 0.45)',
-          }}
+          className="text-[var(--ink-2)] no-underline py-1 px-3 rounded-full border border-[var(--line)] bg-[var(--paper-2)] font-mono text-[11px] tracking-wider uppercase hover:text-[var(--ink)] hover:border-[var(--ink-4)] transition-colors"
         >
-          Open full analysis <ArrowRight size={15} />
+          Full analysis →
         </Link>
       </div>
     </div>
@@ -305,8 +314,8 @@ function VoiceTransmitCard() {
               key={i}
               className="w-[2px] rounded-full bg-[var(--rose)]"
               style={{
-                height: `${3 + Math.random() * 14}px`,
-                opacity: 0.5 + Math.random() * 0.5,
+                height: `${4 + ((i * 7 + 3) % 13)}px`,
+                opacity: 0.5 + ((i * 5 + 2) % 10) / 20,
                 animation: 'breathe 0.8s ease-in-out infinite',
                 animationDelay: `${i * 0.05}s`,
               }}
@@ -335,15 +344,22 @@ function ChatLog() {
     <div className="card flex flex-col h-full min-h-0">
       <div className="p-4 pb-3 border-b border-[var(--line-soft)] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[16px]">💬</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/message.png" alt="Chat" width={18} height={18} draggable={false} />
           <div>
             <span className="font-serif text-[15px] font-medium">Chat log</span>
             <span className="micro ml-2">This morning</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button className="btn btn-icon btn-ghost" aria-label="Notifications">🔔</button>
-          <button className="btn btn-icon btn-ghost" aria-label="Pin">📌</button>
+          <button className="btn btn-icon btn-ghost" aria-label="Record voice">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mic.png" alt="Record" width={18} height={18} draggable={false} />
+          </button>
+          <button className="btn btn-icon btn-ghost" aria-label="Delete conversation">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/trash.png" alt="Delete" width={18} height={18} draggable={false} />
+          </button>
         </div>
       </div>
 
@@ -372,7 +388,7 @@ function ChatLog() {
                       key={j}
                       className="w-[2px] rounded-full"
                       style={{
-                        height: `${4 + Math.random() * 14}px`,
+                        height: `${4 + ((j * 7 + 5) % 13)}px`,
                         background: msg.from === 'user' ? 'var(--paper)' : 'var(--ink-3)',
                         opacity: 0.7,
                       }}
