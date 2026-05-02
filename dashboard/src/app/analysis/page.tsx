@@ -530,27 +530,8 @@ export default function AnalysisPage() {
   }
 
   return (
-    <div className="relative z-10 h-screen max-w-[1500px] mx-auto p-3 grid grid-rows-[auto_auto_1fr] gap-3">
+    <div className="relative z-10 h-screen max-w-[1500px] mx-auto p-3 grid grid-rows-[auto_1fr] gap-3">
       <Topbar connected={true} />
-      
-      {/* Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-xl shadow-[var(--shadow-card)] w-fit">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`flex items-center gap-2 py-2 px-4 rounded-lg font-medium text-[12.5px] tracking-wide transition-all ${
-              activeTab === tab.id
-                ? 'bg-[var(--paper)] text-[var(--ink)] shadow-[0_1px_0_oklch(1_0_0_/_0.9)_inset,_0_1px_2px_oklch(0.4_0.02_60_/_0.10)]'
-                : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
-            }`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${activeTab === tab.id ? 'bg-[var(--sage)]' : 'bg-[var(--ink-4)]'}`}></div>
-            {tab.label}
-            <span className="font-mono text-[10px] text-[var(--ink-3)] ml-1 tracking-wider">{tab.number}</span>
-          </button>
-        ))}
-      </div>
       
       {/* Main content */}
       <div className="grid grid-cols-[minmax(0,1.18fr)_minmax(0,1fr)] gap-3 min-h-0">
@@ -601,9 +582,28 @@ export default function AnalysisPage() {
           </div>
         </div>
         
-        {/* Right: Tab content */}
-        <div className="min-h-0">
-          {renderPanel()}
+        {/* Right: Tabs + Tab content */}
+        <div className="flex flex-col gap-3 min-h-0">
+          <div className="flex items-center gap-1 p-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-xl shadow-[var(--shadow-card)] w-fit">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`flex items-center gap-2 py-2 px-4 rounded-lg font-medium text-[12.5px] tracking-wide transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-[var(--paper)] text-[var(--ink)] shadow-[0_1px_0_oklch(1_0_0_/_0.9)_inset,_0_1px_2px_oklch(0.4_0.02_60_/_0.10)]'
+                    : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${activeTab === tab.id ? 'bg-[var(--sage)]' : 'bg-[var(--ink-4)]'}`}></div>
+                {tab.label}
+                <span className="font-mono text-[10px] text-[var(--ink-3)] ml-1 tracking-wider">{tab.number}</span>
+              </button>
+            ))}
+          </div>
+          <div className="min-h-0 flex-1">
+            {renderPanel()}
+          </div>
         </div>
       </div>
     </div>

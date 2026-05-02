@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 interface HeatmapProps {
   className?: string
@@ -112,14 +112,14 @@ export function Heatmap({ className = '' }: HeatmapProps) {
 
       <div className="grid grid-cols-[86px_1fr] gap-3 items-center">
         {data.map((rowData, rowIndex) => (
-          <>
-            <div key={`label-${rowIndex}`} className="font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)]">
+          <Fragment key={rowIndex}>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)]">
               {rowLabels[rowIndex].label}
               <div className="font-mono text-[9px] text-[var(--ink-3)] tracking-normal lowercase mt-0.5">
                 {rowLabels[rowIndex].sub}
               </div>
             </div>
-            <div key={`data-${rowIndex}`} className="grid grid-cols-24 gap-1">
+            <div className="grid grid-cols-24 gap-1">
               {rowData.map((intensity, hourIndex) => (
                 <div
                   key={`${rowIndex}-${hourIndex}`}
@@ -129,7 +129,7 @@ export function Heatmap({ className = '' }: HeatmapProps) {
                 />
               ))}
             </div>
-          </>
+          </Fragment>
         ))}
         
         {/* Time axis */}
