@@ -1,12 +1,12 @@
----
-title: Theodore — Product Context
+﻿---
+title: Ed — Product Context
 inclusion: always
 ---
 
-# Theodore — Emotionally Intelligent Companion Bear
+# Ed — Emotionally Intelligent Companion Bear
 
 ## What It Is
-An emotionally intelligent teddy bear for elderly users with mild-to-moderate dementia. Theodore detects distress through audio, motion, heart rate, and touch, then responds with calming voice, haptic breathing, and visual indicators. A connected dashboard surfaces patterns for family caregivers and clinicians.
+An emotionally intelligent teddy bear for elderly users with mild-to-moderate dementia. Ed detects distress through audio, motion, heart rate, and touch, then responds with calming voice, haptic breathing, and visual indicators. A connected dashboard surfaces patterns for family caregivers and clinicians.
 
 ## Target Users
 - **Primary**: Elderly individuals with mild-to-moderate dementia, anxiety, or loneliness

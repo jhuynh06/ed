@@ -1,6 +1,6 @@
-# Theodore — `.kiro/` Configuration Guide
+﻿# Ed — `.kiro/` Configuration Guide
 
-This directory contains the complete Kiro AI agent configuration for Theodore, an emotionally intelligent companion bear for elderly users with dementia.
+This directory contains the complete Kiro AI agent configuration for Ed, an emotionally intelligent companion bear for elderly users with dementia.
 
 ## Directory Structure
 
@@ -50,7 +50,7 @@ This directory contains the complete Kiro AI agent configuration for Theodore, a
 ## How Kiro Was Used
 
 ### Steering Docs (12 files, always-on)
-Steering docs are the "constitution" for AI-assisted development. They ensure every code generation request is grounded in Theodore's specific architecture, domain constraints, and research-backed patterns. Key examples:
+Steering docs are the "constitution" for AI-assisted development. They ensure every code generation request is grounded in Ed's specific architecture, domain constraints, and research-backed patterns. Key examples:
 - **05-sensor-patterns.md** enforces IoT-LLM translation (arxiv.org/html/2410.02429) — raw sensor values are never sent to Claude, with concrete agitation scoring code
 - **06-memory-architecture.md** defines the three-tier memory system inspired by A-MEM (Zettelkasten), DAM-LLM (confidence weighting), and Memory as Action patterns, with retrieval and consolidation code
 - **07-safety-ethics.md** mandates Multi-Agent Reflexion (arxiv.org/html/2512.20845) on all caregiver notifications, with full MAR implementation pattern

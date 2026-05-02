@@ -1,12 +1,12 @@
-# Feature: LangGraph Agent Pipeline
+﻿# Feature: LangGraph Agent Pipeline
 
 ## Status: draft
 
 ## Problem Statement
-Theodore needs a multi-agent pipeline that takes fused sensor observations and produces appropriate interventions. The pipeline must handle different risk levels, use memory for personalization, and apply MAR (Multi-Agent Reflexion) on caregiver notifications.
+Ed needs a multi-agent pipeline that takes fused sensor observations and produces appropriate interventions. The pipeline must handle different risk levels, use memory for personalization, and apply MAR (Multi-Agent Reflexion) on caregiver notifications.
 
 ## User Stories
-- As Theodore, I want to automatically respond to user distress with the right intervention
+- As Ed, I want to automatically respond to user distress with the right intervention
 - As a caregiver, I want notifications that are clinically appropriate, not alarmist, and privacy-respecting
 - As the system, I want to route low-risk observations to logging only, avoiding unnecessary interventions
 

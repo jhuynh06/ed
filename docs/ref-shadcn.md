@@ -1,4 +1,4 @@
-# shadcn/ui — Component Reference for Theodore Dashboard
+﻿# shadcn/ui — Component Reference for Ed Dashboard
 
 Source: ui.shadcn.com
 
@@ -13,7 +13,7 @@ pnpm dlx shadcn@latest add button card badge dialog tabs toast
 pnpm dlx shadcn@latest add alert separator skeleton scroll-area
 ```
 
-## Components Theodore Needs
+## Components Ed Needs
 
 ### Card (episode cards, status card, vitals)
 ```tsx
@@ -98,7 +98,7 @@ import { Separator } from "@/components/ui/separator"
 <Separator className="my-4" />
 ```
 
-## Color Mapping for Theodore
+## Color Mapping for Ed
 
 ```tsx
 // Agitation severity → Tailwind classes

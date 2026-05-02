@@ -1,4 +1,4 @@
-# Feature: Sensor Fusion & IoT-LLM Perception
+﻿# Feature: Sensor Fusion & IoT-LLM Perception
 
 ## Status: draft
 
@@ -7,7 +7,7 @@ Raw sensor data from ESP32 (IMU, HR, touch, audio) must be fused into a coherent
 
 ## User Stories
 - As the planner agent, I want a semantic description of the user's state so that I can make informed intervention decisions
-- As a caregiver viewing the dashboard, I want to see a human-readable summary of what Theodore is sensing
+- As a caregiver viewing the dashboard, I want to see a human-readable summary of what Ed is sensing
 
 ## Functional Requirements
 - REQ-001: When sensor_data arrives via WebSocket, the perception agent shall compute IMU features (jerk, hug, fall, tremor, rocking) within 100ms

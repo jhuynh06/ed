@@ -1,9 +1,9 @@
-# Tasks: LangGraph Agent Pipeline
+﻿# Tasks: LangGraph Agent Pipeline
 
 ## Implementation Order
 
 ### Phase 1: State & Graph Skeleton
-- [ ] Define `TheodoreState` TypedDict with all fields | `backend/app/agents/state.py`
+- [ ] Define `EdState` TypedDict with all fields | `backend/app/agents/state.py`
 - [ ] Create LangGraph `StateGraph` with all nodes as stubs (pass-through) | `backend/app/agents/graph.py`
 - [ ] Add conditional edges for risk routing and notification routing | `backend/app/agents/graph.py`
 - [ ] Verify graph compiles and runs with empty state | `backend/app/agents/graph.py`

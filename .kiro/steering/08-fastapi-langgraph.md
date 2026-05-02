@@ -1,5 +1,5 @@
----
-title: Theodore — FastAPI & LangGraph Patterns
+﻿---
+title: Ed — FastAPI & LangGraph Patterns
 inclusion: fileMatch
 fileMatch: "backend/**"
 ---
@@ -48,7 +48,7 @@ Messages are JSON with `type` field:
 async def bear_websocket(ws: WebSocket):
     await ws.accept()
     buffer = SensorBuffer()
-    graph = build_theodore_graph()
+    graph = build_ed_graph()
 
     try:
         while True:

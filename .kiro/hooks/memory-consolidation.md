@@ -1,4 +1,4 @@
----
+﻿---
 name: memory-consolidation
 description: Trigger episodic-to-semantic memory consolidation — showcases Kiro hooks for judges
 trigger:
@@ -23,4 +23,4 @@ When triggered, run the memory consolidation process:
 
 7. Output a summary of what was consolidated for display on the dashboard.
 
-This hook demonstrates the episodic → semantic consolidation pipeline described in the memory architecture. It's designed to be triggered during the demo to show judges how Theodore learns patterns over time.
+This hook demonstrates the episodic → semantic consolidation pipeline described in the memory architecture. It's designed to be triggered during the demo to show judges how Ed learns patterns over time.

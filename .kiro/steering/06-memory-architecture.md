@@ -1,11 +1,11 @@
----
-title: Theodore — Memory Architecture
+﻿---
+title: Ed — Memory Architecture
 inclusion: always
 ---
 
 # Memory Architecture
 
-Theodore uses a biologically-inspired memory system with episodic capture, semantic consolidation, confidence weighting, active curation, and associative retrieval.
+Ed uses a biologically-inspired memory system with episodic capture, semantic consolidation, confidence weighting, active curation, and associative retrieval.
 
 ## Three Memory Tiers
 

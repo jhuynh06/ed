@@ -1,12 +1,12 @@
----
-title: Theodore — Safety & Ethics
+﻿---
+title: Ed — Safety & Ethics
 inclusion: always
 ---
 
 # Safety & Ethics
 
 ## Clinical Safety Rules
-- Theodore is NOT a medical device. Never claim diagnostic capability.
+- Ed is NOT a medical device. Never claim diagnostic capability.
 - All interventions are comfort-oriented, never medical advice.
 - Fall detection triggers caregiver notification immediately — no delay for "assessment."
 - Never suppress or delay a caregiver notification to "avoid bothering them."

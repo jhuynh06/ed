@@ -1,11 +1,11 @@
----
-title: Theodore — Demo Mode
+﻿---
+title: Ed — Demo Mode
 inclusion: manual
 ---
 
 # Demo Mode — 3-Minute Hackathon Presentation
 
-When the user says "start demo" or "demo mode", Theodore enters a scripted demonstration sequence. This steering doc defines the exact timing, actions, and talking points.
+When the user says "start demo" or "demo mode", Ed enters a scripted demonstration sequence. This steering doc defines the exact timing, actions, and talking points.
 
 ## Pre-Demo Checklist
 - [ ] Backend running (`uv run uvicorn app.main:app`)
@@ -17,22 +17,22 @@ When the user says "start demo" or "demo mode", Theodore enters a scripted demon
 ## Demo Sequence (3 minutes)
 
 ### Act 1: Distress Detection (0:00–1:00)
-**Narrative**: "Meet Margaret. She's 78, lives alone, has mild dementia. It's 4:30pm — sundowning hour. Theodore already knows this."
+**Narrative**: "Meet Margaret. She's 78, lives alone, has mild dementia. It's 4:30pm — sundowning hour. Ed already knows this."
 
 **What happens**:
 1. Dashboard shows sundowning indicator: "⚠ Approaching sundowning window — peak hour 16:00, 85% confidence"
 2. Synthetic scenario starts: gradual agitation ramp
    - IMU: increasing restlessness (jerk rising from 0.1 → 0.8)
-   - Touch: gripping Theodore's paw tightly
+   - Touch: gripping Ed's paw tightly
    - Audio: soft whimpering detected by VAD, vocal arousal rising
 3. Dashboard shows: agitation timeline climbing from green → yellow → orange (risk multiplier 1.5× applied)
-4. IoT-LLM translation visible: "Margaret is becoming increasingly restless. She's gripping Theodore tightly and making distressed sounds. Vocal analysis detects rising anxiety."
+4. IoT-LLM translation visible: "Margaret is becoming increasingly restless. She's gripping Ed tightly and making distressed sounds. Vocal analysis detects rising anxiety."
 5. Risk assessment triggers: **medium → high**
 
-**Talking point**: "Theodore doesn't just react — it anticipates. It learned Margaret's sundowning pattern from prior sessions and pre-emptively raised its sensitivity at 3pm. By 4:30 it was already watching."
+**Talking point**: "Ed doesn't just react — it anticipates. It learned Margaret's sundowning pattern from prior sessions and pre-emptively raised its sensitivity at 3pm. By 4:30 it was already watching."
 
 ### Act 2: Intelligent Response + Dashboard (1:00–2:00)
-**Narrative**: "Now watch Theodore respond — and watch the dashboard capture everything."
+**Narrative**: "Now watch Ed respond — and watch the dashboard capture everything."
 
 **What happens**:
 1. Memory retrieval finds: "Margaret responds well to grandson's voice at 4pm" (confidence: 0.85)
@@ -43,13 +43,13 @@ When the user says "start demo" or "demo mode", Theodore enters a scripted demon
    - Grandson's voice plays: "I love you grandma, everything's okay"
    - 30-second pause
    - Haptic breathing pacer starts (6 bpm)
-   - Theodore speaks: "I'm right here with you, Margaret. Let's breathe together."
+   - Ed speaks: "I'm right here with you, Margaret. Let's breathe together."
 5. Dashboard shows:
    - Episode card appearing in real-time
    - Agitation timeline starting to decline (orange → yellow → green)
    - Notification prepared for caregiver
 
-**Talking point**: "Theodore remembered what worked last time. That comfort recipe was learned from 3 prior episodes — not hardcoded."
+**Talking point**: "Ed remembered what worked last time. That comfort recipe was learned from 3 prior episodes — not hardcoded."
 
 ### Act 3: MAR + Emotional Moment (2:00–3:00)
 **Narrative**: "Before any notification reaches Margaret's daughter, it goes through three AI critics."
@@ -59,7 +59,7 @@ When the user says "start demo" or "demo mode", Theodore enters a scripted demon
    - Clinical Safety: "APPROVE — appropriate comfort intervention, no medical concern"
    - Family Tone: "REVISE — 'agitation episode' sounds clinical, suggest 'Margaret had a restless moment'"
    - Privacy: "APPROVE — no unnecessary detail shared"
-2. Show the revised notification: "Margaret had a restless moment this afternoon. Theodore played Jake's voice message and guided breathing, and she calmed down within a few minutes. No action needed."
+2. Show the revised notification: "Margaret had a restless moment this afternoon. Ed played Jake's voice message and guided breathing, and she calmed down within a few minutes. No action needed."
 3. Show daily summary: Claude-generated paragraph with circadian pattern ("3rd episode this week between 4-5pm, consistent with sundowning pattern")
    - Mood arc: "calm morning, agitated late afternoon, calm evening"
    - Action items: "Consider earlier dinner time", "Play familiar music at 3pm tomorrow"

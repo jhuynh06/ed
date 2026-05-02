@@ -1,7 +1,7 @@
 [project]
-name = "theodore-backend"
+name = "ed-backend"
 version = "0.1.0"
-description = "Theodore — emotionally intelligent companion bear backend"
+description = "Ed — emotionally intelligent companion bear backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -21,6 +21,7 @@ dependencies = [
     "transformers>=5.7.0",
     "tokenizers==0.22.2",
     "sounddevice>=0.5.1",
+    "python-multipart>=0.0.27",
 ]
 
 [project.optional-dependencies]
@@ -43,3 +44,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest-asyncio>=1.3.0",
+]

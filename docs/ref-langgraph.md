@@ -1,4 +1,4 @@
-# LangGraph — Quick Reference for Theodore
+﻿# LangGraph — Quick Reference for Ed
 
 Source: langchain-ai.github.io/langgraph/
 
@@ -58,13 +58,13 @@ result = app.invoke({"messages": [], "next_step": ""})
 result = await app.ainvoke({"messages": [], "next_step": ""})
 ```
 
-## Theodore's Graph Pattern
+## Ed's Graph Pattern
 
 ```python
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, Literal
 
-class TheodoreState(TypedDict):
+class EdState(TypedDict):
     raw_sensor: dict
     observation: dict | None
     semantic_text: str
@@ -79,17 +79,17 @@ class TheodoreState(TypedDict):
     executed_actions: list
     episode_id: str | None
 
-def route_by_risk(state: TheodoreState) -> str:
+def route_by_risk(state: EdState) -> str:
     if state["risk_level"] == "low":
         return "log_only"
     return "memory_retrieval"
 
-def route_notification(state: TheodoreState) -> str:
+def route_notification(state: EdState) -> str:
     if state.get("notification"):
         return "mar_gate"
     return "executor"
 
-graph = StateGraph(TheodoreState)
+graph = StateGraph(EdState)
 
 graph.add_node("perception", perception_node)
 graph.add_node("risk_assessment", risk_node)
@@ -115,7 +115,7 @@ app = graph.compile()
 
 ## Async Node Pattern
 ```python
-async def perception_node(state: TheodoreState) -> dict:
+async def perception_node(state: EdState) -> dict:
     snapshot = build_snapshot(state["raw_sensor"])
     semantic = await translate_iot_llm(snapshot)  # Haiku call
     score = compute_agitation_score(snapshot)

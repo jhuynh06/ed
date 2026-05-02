@@ -1,5 +1,5 @@
----
-title: Theodore — Tech Stack
+﻿---
+title: Ed — Tech Stack
 inclusion: always
 ---
 

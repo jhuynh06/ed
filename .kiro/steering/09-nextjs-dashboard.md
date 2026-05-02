@@ -1,5 +1,5 @@
----
-title: Theodore — Next.js Dashboard Patterns
+﻿---
+title: Ed — Next.js Dashboard Patterns
 inclusion: fileMatch
 fileMatch: "dashboard/**"
 ---
@@ -49,7 +49,7 @@ function useSSE<T>(url: string): { data: T | null; connected: boolean }
 ### Dashboard Home (`/`)
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ [Sidebar]  │  Theodore Dashboard                        │
+│ [Sidebar]  │  Ed Dashboard                        │
 │            │                                            │
 │ 🏠 Home    │  ┌─ Status Card ──────────────────────┐   │
 │ 📋 Episodes│  │ 🟢 Calm (score: 22)  │ 🔗 Connected│   │

@@ -1,4 +1,4 @@
-# Design: LangGraph Agent Pipeline
+﻿# Design: LangGraph Agent Pipeline
 
 ## Architecture Overview
 
@@ -51,7 +51,7 @@
 ## LangGraph State
 
 ```python
-class TheodoreState(TypedDict):
+class EdState(TypedDict):
     # Input
     raw_sensor: dict                    # latest sensor_data JSON
     audio_buffer: list[bytes]           # VAD-gated audio chunks
@@ -89,7 +89,7 @@ class TheodoreState(TypedDict):
 
 ### Risk Assessment Node (deterministic)
 ```python
-def assess_risk(state: TheodoreState) -> dict:
+def assess_risk(state: EdState) -> dict:
     score = state["agitation_score"]
     if state["observation"].features.imu.fall_detected:
         return {"risk_level": "high"}
@@ -146,17 +146,17 @@ All three critics run in parallel. If any says REVISE, the planner rewrites the 
 ## Conditional Edges
 
 ```python
-def route_by_risk(state: TheodoreState) -> str:
+def route_by_risk(state: EdState) -> str:
     if state["risk_level"] == "low":
         return "log_only"
     return "memory_retrieval"
 
-def route_notification(state: TheodoreState) -> str:
+def route_notification(state: EdState) -> str:
     if state.get("notification"):
         return "mar_gate"
     return "executor"
 
-graph = StateGraph(TheodoreState)
+graph = StateGraph(EdState)
 graph.add_node("perception", perception_node)
 graph.add_node("risk_assessment", assess_risk)
 graph.add_node("memory_retrieval", memory_retrieval_node)

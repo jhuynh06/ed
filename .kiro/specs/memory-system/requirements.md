@@ -1,15 +1,15 @@
-# Feature: Three-Tier Memory System
+﻿# Feature: Three-Tier Memory System
 
 ## Status: draft
 
 ## Problem Statement
-Theodore needs to learn about each user over time — what calms them, what triggers agitation, family context. A simple RAG system loses nuance. We need episodic capture, semantic consolidation, and reusable comfort recipes with confidence-weighted retrieval.
+Ed needs to learn about each user over time — what calms them, what triggers agitation, family context. A simple RAG system loses nuance. We need episodic capture, semantic consolidation, and reusable comfort recipes with confidence-weighted retrieval.
 
 ## User Stories
 - As the planner agent, I want to retrieve relevant memories so that interventions are personalized
 - As the planner agent, I want to store successful interventions as comfort recipes so that proven sequences can be reused
 - As the memory system, I want to consolidate repeated episodic patterns into semantic facts so that retrieval is efficient
-- As a caregiver, I want to see discovered patterns on the dashboard so that I understand Theodore's learning
+- As a caregiver, I want to see discovered patterns on the dashboard so that I understand Ed's learning
 
 ## Functional Requirements
 - REQ-001: When an episode ends, the system shall store it as an episodic memory in Chroma with timestamp, sensor summary, actions taken, and outcome

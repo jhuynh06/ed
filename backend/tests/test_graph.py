@@ -1,4 +1,4 @@
-"""End-to-end test for the Theodore LangGraph pipeline."""
+﻿"""End-to-end test for the Ed LangGraph pipeline."""
 
 import asyncio
 import os
@@ -8,9 +8,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 
 async def test():
-    from app.agents.graph import build_theodore_graph
+    from app.agents.graph import build_ed_graph
 
-    graph = build_theodore_graph()
+    graph = build_ed_graph()
     print("Graph compiled OK")
 
     # Test 1: Low risk (calm user) — should exit after risk node

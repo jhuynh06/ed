@@ -1,5 +1,5 @@
----
-title: Theodore — Sensor Patterns & IoT-LLM Translation
+﻿---
+title: Ed — Sensor Patterns & IoT-LLM Translation
 inclusion: always
 ---
 
@@ -70,5 +70,5 @@ Input snapshot:
 
 Output semantic text:
 ```
-"Margaret has been sitting still for 4 minutes while holding Theodore's paw with moderate pressure. Her heart rate is noticeably elevated at 92 bpm, about 28% above her usual baseline of 72. She hasn't spoken recently. The combination of stillness, elevated heart rate, and paw-gripping suggests growing internal anxiety."
+"Margaret has been sitting still for 4 minutes while holding Ed's paw with moderate pressure. Her heart rate is noticeably elevated at 92 bpm, about 28% above her usual baseline of 72. She hasn't spoken recently. The combination of stillness, elevated heart rate, and paw-gripping suggests growing internal anxiety."
 ```

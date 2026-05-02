@@ -1,12 +1,12 @@
----
-title: Theodore — Project Structure
+﻿---
+title: Ed — Project Structure
 inclusion: always
 ---
 
 # Project Structure
 
 ```
-theodore/
+ed/
 ├── .kiro/                    # Kiro AI agent configuration
 │   ├── agents/               # Custom subagent definitions
 │   ├── hooks/                # Automation hooks

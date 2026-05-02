@@ -1,12 +1,16 @@
 """Perception node — translates raw sensor data into semantic text (IoT-LLM pattern).
 
 Uses Claude Haiku for speed. Never sends raw numbers to the planner.
+Includes a hash-based LRU cache on quantized sensor features to skip
+redundant Haiku calls during calm/stable periods.
 Reference: arxiv.org/html/2410.02429
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
+from collections import OrderedDict
 
 import anthropic
 
@@ -21,6 +25,39 @@ from app.models import (
 
 _client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 _fuser = EmotionFuser()
+
+# ── Perception cache ──────────────────────────────────────────────────
+
+_CACHE_MAX = 64
+_cache: OrderedDict[str, str] = OrderedDict()
+
+
+def _quantize_key(snap: SensorSnapshot) -> str:
+    """Quantize sensor features to coarse buckets and hash them.
+
+    Small changes (jitter, HR ±2bpm) map to the same key, avoiding
+    redundant Haiku calls during stable periods.
+    """
+    parts = (
+        round(snap.imu.jerk_magnitude, 1),
+        round(snap.imu.stillness_duration_s / 30) * 30,  # 30s buckets
+        int(snap.imu.rocking_detected),
+        int(snap.imu.hug_detected),
+        round(snap.hr.bpm / 5) * 5 if snap.hr.valid else -1,  # 5bpm buckets
+        round(snap.hr.elevation_pct / 5) * 5 if snap.hr.valid else -1,
+        int(snap.touch.any_contact),
+        round(snap.touch.squeeze_intensity, 1),
+        snap.speech_text or "",
+    )
+    return hashlib.md5(str(parts).encode()).hexdigest()
+
+
+def perception_cache_stats() -> dict:
+    return {"size": len(_cache), "max": _CACHE_MAX}
+
+
+def clear_perception_cache() -> None:
+    _cache.clear()
 
 _SYSTEM = (
     "You are a sensor interpreter for an elderly care companion bear. "
@@ -100,14 +137,22 @@ async def perception_node(state: AgentState) -> AgentState:
         }
 
     prompt = _format_features(snap)
+    cache_key = _quantize_key(snap)
 
-    response = _client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=150,
-        system=_SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    semantic_text = response.content[0].text.strip()
+    if cache_key in _cache:
+        _cache.move_to_end(cache_key)
+        semantic_text = _cache[cache_key]
+    else:
+        response = _client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=150,
+            system=_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        semantic_text = response.content[0].text.strip()
+        _cache[cache_key] = semantic_text
+        if len(_cache) > _CACHE_MAX:
+            _cache.popitem(last=False)
 
     return {
         **state,

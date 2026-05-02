@@ -1,5 +1,5 @@
----
-title: Theodore — ESP32 Firmware Patterns
+﻿---
+title: Ed — ESP32 Firmware Patterns
 inclusion: fileMatch
 fileMatch: "firmware/**"
 ---

@@ -1,4 +1,4 @@
-"""Theodore LangGraph — wires all nodes with conditional routing.
+﻿"""Ed LangGraph — wires all nodes with conditional routing.
 
 Pipeline:
   perception → risk → [low: END] [medium/high: memory → planner → executor → END]
@@ -16,8 +16,8 @@ from app.agents.risk import risk_node, route_by_risk
 from app.agents.state import AgentState
 
 
-def build_theodore_graph() -> StateGraph:
-    """Build and compile the Theodore agent graph."""
+def build_ed_graph() -> StateGraph:
+    """Build and compile the Ed agent graph."""
     graph = StateGraph(AgentState)
 
     # Register nodes
@@ -50,4 +50,4 @@ def build_theodore_graph() -> StateGraph:
 
 
 # Module-level singleton for the FastAPI app to import
-theodore_graph = build_theodore_graph()
+ed_graph = build_ed_graph()

@@ -1,4 +1,4 @@
-"""Theodore agent state — shared TypedDict passed through the LangGraph pipeline."""
+﻿"""Ed agent state — shared TypedDict passed through the LangGraph pipeline."""
 
 from __future__ import annotations
 

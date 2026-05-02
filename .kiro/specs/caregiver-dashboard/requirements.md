@@ -1,15 +1,15 @@
-# Feature: Caregiver Dashboard
+﻿# Feature: Caregiver Dashboard
 
 ## Status: draft
 
 ## Problem Statement
-Family caregivers and clinicians need a real-time view of Theodore's observations, interventions, and discovered patterns. The dashboard must surface actionable insights without requiring technical knowledge.
+Family caregivers and clinicians need a real-time view of Ed's observations, interventions, and discovered patterns. The dashboard must surface actionable insights without requiring technical knowledge.
 
 ## User Stories
 - As a family caregiver, I want to see a live agitation timeline so that I know how my parent is doing right now
 - As a family caregiver, I want to receive notifications with appropriate urgency so that I'm not overwhelmed
 - As a clinician, I want to see circadian patterns and daily summaries so that I can adjust care plans between visits
-- As a family member, I want to upload voice clips so that Theodore can play them during distress
+- As a family member, I want to upload voice clips so that Ed can play them during distress
 
 ## Functional Requirements
 - REQ-001: The dashboard shall display a live agitation timeline (last 6 hours, 1-minute resolution, color-coded)

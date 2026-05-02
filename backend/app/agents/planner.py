@@ -1,4 +1,4 @@
-"""Planner node — decides intervention using Claude Sonnet + retrieved memories.
+﻿"""Planner node — decides intervention using Claude Sonnet + retrieved memories.
 
 Uses comfort recipe if available (workflow memory pattern).
 Falls back to Sonnet reasoning for novel situations.
@@ -17,7 +17,7 @@ from app.cst import select_probe, grade_response, CSTProbe
 
 _client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-_SYSTEM = """You are Theodore's intervention planner for an elderly dementia care companion bear.
+_SYSTEM = """You are Ed's intervention planner for an elderly dementia care companion bear.
 
 Given a semantic observation, risk level, and retrieved memories, decide on the best intervention.
 

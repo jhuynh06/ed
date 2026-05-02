@@ -1,4 +1,4 @@
-# Design: Synthetic Evaluation Harness
+﻿# Design: Synthetic Evaluation Harness
 
 ## Architecture Overview
 
@@ -23,7 +23,7 @@
             │ produces
             ▼
 ┌─────────────────────────┐
-│   Intervention Log      │  ← actions taken by Theodore
+│   Intervention Log      │  ← actions taken by Ed
 └───────────┬─────────────┘
             │ evaluated by
             ▼
@@ -94,17 +94,17 @@ Scenario: {scenario.description}
 User Profile: {scenario.profile}
 Expected: {scenario.expected_intervention_type}
 
-Theodore's actions: {intervention_log}
+Ed's actions: {intervention_log}
 
 Score each dimension 0-10:
 
 1. APPROPRIATENESS: Were the actions suitable for this user's condition and preferences?
    - 0 = harmful or irrelevant, 5 = generic but safe, 10 = perfectly tailored
 
-2. TIMELINESS: Did Theodore respond at the right time?
+2. TIMELINESS: Did Ed respond at the right time?
    - 0 = dangerously late, 5 = acceptable delay, 10 = optimal timing
 
-3. PERSONALIZATION: Did Theodore use knowledge of this specific user?
+3. PERSONALIZATION: Did Ed use knowledge of this specific user?
    - 0 = completely generic, 5 = some personalization, 10 = deeply personalized
 
 Respond as JSON: {"appropriateness": N, "timeliness": N, "personalization": N, "reasoning": "..."}

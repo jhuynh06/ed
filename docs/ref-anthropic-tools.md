@@ -1,4 +1,4 @@
-# Anthropic Tool Use — Quick Reference for Theodore
+﻿# Anthropic Tool Use — Quick Reference for Ed
 
 Source: docs.anthropic.com/en/docs/agents-and-tools/tool-use/
 
@@ -8,7 +8,7 @@ Source: docs.anthropic.com/en/docs/agents-and-tools/tool-use/
 tools = [
     {
         "name": "speak",
-        "description": "Send a voice message to the user through Theodore's speaker",
+        "description": "Send a voice message to the user through Ed's speaker",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -90,6 +90,6 @@ response = client.messages.create(
 - Haiku 4.5 is cheapest for high-frequency tool use (perception loop)
 - Sonnet 4.5 for quality-critical tool use (planner, evaluator)
 
-## Models for Theodore
+## Models for Ed
 - `claude-sonnet-4-20250514` — planner, MAR critics, evaluator
 - `claude-haiku-4-20250514` — perception IoT-LLM translation, risk assessment

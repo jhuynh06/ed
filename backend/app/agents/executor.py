@@ -107,14 +107,26 @@ async def _run_mar_gate(notification: str, context: str) -> MARResult:
 
 
 async def executor_node(state: AgentState) -> AgentState:
-    """Dispatch actions to bear (stub) and run MAR gate on any notification."""
+    """Dispatch actions to bear (stub) and run MAR gate on any notification.
+
+    For 'speak' actions, generates TTS audio chunks via Cartesia and
+    stores them in state for the WebSocket handler to stream to the ESP32.
+    """
     actions = state.get("actions", [])
     executed: list[dict] = []
+    tts_chunks: list[list[bytes]] = []
 
     for action in actions:
-        # In production: await ws.send_json(action)
         logger.info("BEAR ACTION: %s", action)
         executed.append({**action, "status": "dispatched"})
+
+        # Generate TTS audio for speak actions
+        if action.get("action") == "speak" and action.get("payload", {}).get("text"):
+            from app.tts import stream_tts
+            chunks: list[bytes] = []
+            async for chunk in stream_tts(action["payload"]["text"]):
+                chunks.append(chunk)
+            tts_chunks.append(chunks)
 
     # Wandering/disorientation detection from transcript
     snap = state.get("sensor_snapshot")
@@ -161,4 +173,4 @@ async def executor_node(state: AgentState) -> AgentState:
         if anomaly_result.is_anomaly:
             logger.warning("ANOMALY: %s", anomaly_result.message)
 
-    return {**state, "executed_actions": executed, "mar_result": mar_result, "anomaly": anomaly_result.__dict__ if anomaly_result else None, "wandering_alert": wandering_alert.__dict__ if wandering_alert else None}
+    return {**state, "executed_actions": executed, "mar_result": mar_result, "anomaly": anomaly_result.__dict__ if anomaly_result else None, "wandering_alert": wandering_alert.__dict__ if wandering_alert else None, "tts_chunks": tts_chunks}

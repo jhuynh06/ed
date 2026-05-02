@@ -1,4 +1,4 @@
-# Chroma Python Client — Quick Reference for Theodore
+﻿# Chroma Python Client — Quick Reference for Ed
 
 Source: docs.trychroma.com
 
@@ -113,7 +113,7 @@ collection.delete(ids=["ep-001"])
 collection.delete(where={"consolidated": True})
 ```
 
-## Theodore's Collections
+## Ed's Collections
 
 | Collection | Documents | Key Metadata |
 |-----------|-----------|-------------|

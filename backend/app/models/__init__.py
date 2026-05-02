@@ -1,4 +1,4 @@
-"""Theodore — All Pydantic models in one place."""
+﻿"""Ed — All Pydantic models in one place."""
 
 from __future__ import annotations
 

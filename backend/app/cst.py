@@ -1,4 +1,4 @@
-"""Cognitive Stimulation Therapy (CST) probe system.
+﻿"""Cognitive Stimulation Therapy (CST) probe system.
 
 Probes are disguised as natural conversation — never clinical-sounding.
 The planner selects probes based on which CDR dimension needs assessment,
@@ -18,7 +18,7 @@ ProbeGrade = Literal["accurate", "partial", "confused", "no_response"]
 class CSTProbe:
     id: str
     dimension: CDRDimension
-    question: str                    # what Theodore says
+    question: str                    # what Ed says
     grading_hint: str                # what a good answer looks like (for LLM grader)
     follow_up: str | None = None     # optional follow-up if patient engages
 
