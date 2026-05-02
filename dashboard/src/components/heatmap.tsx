@@ -82,7 +82,7 @@ export function Heatmap({ className = '' }: HeatmapProps) {
   const timeLabels = ['00', '03', '06', '09', '12', '15', '18', '21', '24']
 
   return (
-    <div className={`card p-3 flex flex-col gap-4 ${className}`}>
+    <div className={`card p-3 flex flex-col gap-4 ${className}`} aria-label="Engagement heatmap showing touch, speech, motion, and hug activity over the last 24 hours">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">

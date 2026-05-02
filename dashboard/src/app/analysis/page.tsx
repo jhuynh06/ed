@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from 'react'
 import { Topbar } from '@/components/topbar'
@@ -554,10 +554,13 @@ export default function AnalysisPage() {
         
         {/* Right: Tabs + Tab content */}
         <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
-          <div className="flex items-center gap-1 p-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-xl shadow-[var(--shadow-card)] w-fit sticky top-0 z-10">
+          <div className="flex items-center gap-1 p-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-xl shadow-[var(--shadow-card)] w-fit sticky top-0 z-10" role="tablist">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
                 className={`flex items-center gap-2 py-2 px-4 rounded-lg font-medium text-[12.5px] tracking-wide transition-all ${
                   activeTab === tab.id
                     ? 'bg-[var(--paper)] text-[var(--ink)] shadow-[0_1px_0_oklch(1_0_0_/_0.9)_inset,_0_1px_2px_oklch(0.4_0.02_60_/_0.10)]'

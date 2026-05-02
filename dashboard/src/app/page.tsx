@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePatient } from '@/lib/patient-context'
-import { Mic, Play, Pause, Plus, Check, X, Send } from 'lucide-react'
+import { useSSE } from '@/lib/use-sse'
+import { fetchMedications, type Medication } from '@/lib/api'
+import { Mic, Play, Pause, Plus, X, Send } from 'lucide-react'
 
 /* ─── Topbar ─────────────────────────────────────────────── */
 function Topbar({ connected }: { connected: boolean }) {
@@ -113,11 +115,11 @@ function VoicesCard() {
 
 /* ─── Medications Card ───────────────────────────────────── */
 function MedicationsCard() {
-  const meds = [
-    { name: 'Donepezil', freq: '1×/day', weekly: '7×/wk', done: 1, total: 1, status: 'done' },
-    { name: 'Memantine', freq: '2×/day', weekly: '7×/wk', done: 1, total: 2, status: 'partial' },
-    { name: 'Vitamin D', freq: '1×/day', weekly: '3×/wk', done: 0, total: 1, status: 'pending' },
-  ]
+  const [meds, setMeds] = useState<Medication[]>([])
+
+  useEffect(() => {
+    fetchMedications().then(setMeds).catch(() => {})
+  }, [])
 
   return (
     <div className="card p-4 flex flex-col gap-3 h-full">
@@ -133,27 +135,21 @@ function MedicationsCard() {
 
       <div className="space-y-2">
         {meds.map((med) => (
-          <div key={med.name} className="sunken p-3 flex items-center gap-3">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-none ${
-              med.status === 'done' ? 'bg-[var(--sage)] text-white' :
-              med.status === 'partial' ? 'bg-[var(--amber)] text-white' :
-              'border-2 border-[var(--line)] text-[var(--ink-4)]'
-            }`}>
-              {med.status === 'done' && <Check size={13} />}
-              {med.status === 'partial' && <span className="text-[10px] font-mono font-bold">½</span>}
-            </div>
+          <div key={med.id} className="sunken p-3 flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center flex-none border-2 border-[var(--line)] text-[var(--ink-4)]" />
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-2">
                 <span className="font-serif text-[15px]">{med.name}</span>
-                <span className="micro">{med.freq} · {med.weekly}</span>
+                <span className="micro">{med.dosage} · {med.schedule}</span>
               </div>
-              <div className="micro mt-0.5">
-                {med.done}/{med.total} today
-              </div>
+              {med.notes && <div className="micro mt-0.5">{med.notes}</div>}
             </div>
             <X size={14} className="text-[var(--ink-4)] cursor-pointer hover:text-[var(--ink-2)]" />
           </div>
         ))}
+        {meds.length === 0 && (
+          <div className="micro text-[var(--ink-4)] py-2 text-center">No medications</div>
+        )}
       </div>
     </div>
   )
@@ -434,11 +430,11 @@ function ChatLog() {
 
 /* ─── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
-  const connected = true
+  const sse = useSSE()
 
   return (
     <div className="relative z-10 h-screen max-w-[1560px] mx-auto px-3.5 py-2.5 grid grid-rows-[auto_1fr] gap-2.5">
-      <Topbar connected={connected} />
+      <Topbar connected={sse.connected} />
 
       {/* Main 3-column grid matching Ed.html layout */}
       <div

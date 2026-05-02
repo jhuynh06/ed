@@ -141,9 +141,9 @@ def _parse_response(text: str, inp: DigestInput) -> tuple[str, str, list[str]]:
 
 async def generate_digest(inp: DigestInput) -> DailyDigest:
     """Generate a structured daily caregiver digest using Claude Sonnet."""
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-    message = client.messages.create(
+    message = await client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=600,
         messages=[{"role": "user", "content": _build_prompt(inp)}],

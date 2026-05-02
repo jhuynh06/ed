@@ -25,6 +25,7 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import base64
 import logging
 import os
@@ -163,8 +164,8 @@ DB = Annotated[aiosqlite.Connection, Depends(get_db)]
 # In-memory state for /status endpoint
 _last_status: dict = {"score": 0.0, "risk": "low", "bear_connected": False, "updated_at": 0.0}
 
-# Daily summary cache — invalidated when episode count changes
-_summary_cache: dict = {"episode_count": -1, "result": None}
+# Daily summary cache — invalidated when episode count or IDs change
+_summary_cache: dict = {"episode_count": -1, "episode_hash": "", "result": None}
 
 
 # ── WebSocket — ESP32 ────────────────────────────────────────────────
@@ -176,12 +177,17 @@ async def bear_websocket(ws: WebSocket):
     graph = build_ed_graph()
     active_episode_id: str | None = None
     agitation_before: float | None = None
+    episode_start_time: float | None = None
 
     try:
         while True:
             data = await ws.receive_json()
 
-            if data["type"] == "sensor_data":
+            msg_type = data.get("type")
+            if msg_type is None:
+                continue
+
+            if msg_type == "sensor_data":
                 result = await graph.ainvoke({"raw_sensor": data})
 
                 score: float = result.get("agitation_score", 0.0)
@@ -204,6 +210,7 @@ async def bear_websocket(ws: WebSocket):
                 if risk in ("medium", "high") and active_episode_id is None:
                     active_episode_id = result.get("episode_id") or str(uuid.uuid4())
                     agitation_before = score
+                    episode_start_time = time.time()
                     await event_bus.publish(EpisodeStartEvent(
                         id=active_episode_id, timestamp=time.time(), agitation=score,
                     ))
@@ -212,12 +219,13 @@ async def bear_websocket(ws: WebSocket):
                     mar = result.get("mar_result") or {}
                     await event_bus.publish(EpisodeEndEvent(
                         id=active_episode_id,
-                        duration=0.0,  # caller can compute from start event
+                        duration=time.time() - (episode_start_time or time.time()),
                         peak=agitation_before or score,
                         outcome=mar.get("final_notification", "calm restored"),
                     ))
                     active_episode_id = None
                     agitation_before = None
+                    episode_start_time = None
 
                 # Notification
                 mar = result.get("mar_result")
@@ -233,16 +241,15 @@ async def bear_websocket(ws: WebSocket):
                     await ws.send_json(action)
 
                 # Stream TTS audio chunks to bear
-                import base64 as _b64
                 for chunks in result.get("tts_chunks", []):
                     for chunk in chunks:
                         await ws.send_json({
                             "type": "audio_stream",
-                            "payload": _b64.b64encode(chunk).decode(),
+                            "payload": base64.b64encode(chunk).decode(),
                         })
                     await ws.send_json({"type": "audio_stream_end"})
 
-            elif data["type"] == "audio_chunk":
+            elif msg_type == "audio_chunk":
                 # Audio pipeline handled separately — no-op here for now
                 pass
 
@@ -393,8 +400,9 @@ async def daily_summary(db: DB):
     ) as cur:
         rows = await cur.fetchall()
 
-    # Return cached result if episode count hasn't changed
-    if _summary_cache["result"] and _summary_cache["episode_count"] == len(rows):
+    _ep_hash = hashlib.md5(",".join(r["id"] for r in rows).encode()).hexdigest()
+    # Return cached result if episode IDs haven't changed
+    if _summary_cache["result"] and _summary_cache["episode_hash"] == _ep_hash:
         return _summary_cache["result"]
 
     episodes = [
@@ -435,7 +443,7 @@ async def daily_summary(db: DB):
         "action_items": digest.action_items,
         "generated_at": digest.generated_at,
     }
-    _summary_cache.update(episode_count=len(rows), result=result)
+    _summary_cache.update(episode_count=len(rows), episode_hash=_ep_hash, result=result)
     return result
 
 
@@ -462,19 +470,18 @@ async def upload_clip(
 ):
     os.makedirs(CLIPS_DIR, exist_ok=True)
     clip_id = str(uuid.uuid4())
-    filename = f"{clip_id}_{file.filename}"
+    filename = f"{clip_id}_{os.path.basename(file.filename)}"
     dest = os.path.join(CLIPS_DIR, filename)
 
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
 
-    async with aiosqlite.connect(DB_PATH) as db_write:
-        await db_write.execute(
-            "INSERT INTO family_clips (id, label, relation, filename, uploaded_at) VALUES (?,?,?,?,?)",
-            (clip_id, label, relation, filename, time.time()),
-        )
-        await db_write.commit()
+    await db.execute(
+        "INSERT INTO family_clips (id, label, relation, filename, uploaded_at) VALUES (?,?,?,?,?)",
+        (clip_id, label, relation, filename, time.time()),
+    )
+    await db.commit()
 
     return {"id": clip_id, "label": label, "relation": relation, "filename": filename}
 
@@ -502,9 +509,8 @@ async def delete_clip(db: DB, clip_id: str):
     if os.path.isfile(path):
         os.remove(path)
     # Remove DB row
-    async with aiosqlite.connect(DB_PATH) as db_write:
-        await db_write.execute("DELETE FROM family_clips WHERE id = ?", (clip_id,))
-        await db_write.commit()
+    await db.execute("DELETE FROM family_clips WHERE id = ?", (clip_id,))
+    await db.commit()
 
 
 
@@ -529,12 +535,11 @@ async def add_medication(
     notes: str = Query(default=""),
 ):
     med_id = str(uuid.uuid4())
-    async with aiosqlite.connect(DB_PATH) as db_write:
-        await db_write.execute(
-            "INSERT INTO medications (id, name, dosage, schedule, notes, created_at) VALUES (?,?,?,?,?,?)",
-            (med_id, name, dosage, schedule, notes, time.time()),
-        )
-        await db_write.commit()
+    await db.execute(
+        "INSERT INTO medications (id, name, dosage, schedule, notes, created_at) VALUES (?,?,?,?,?,?)",
+        (med_id, name, dosage, schedule, notes, time.time()),
+    )
+    await db.commit()
     return {"id": med_id, "name": name, "dosage": dosage, "schedule": schedule, "notes": notes}
 
 
@@ -544,9 +549,8 @@ async def delete_medication(db: DB, med_id: str):
         row = await cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Medication not found")
-    async with aiosqlite.connect(DB_PATH) as db_write:
-        await db_write.execute("DELETE FROM medications WHERE id = ?", (med_id,))
-        await db_write.commit()
+    await db.execute("DELETE FROM medications WHERE id = ?", (med_id,))
+    await db.commit()
 
 
 
@@ -624,16 +628,15 @@ async def get_weekly_metrics(db: DB):
 async def add_note(
     db: DB,
     note_type: str = Query(..., description="fall|uti|hospital|upset|visitor|other"),
-    content: str = Query(...),
+    content_text: str = Query(..., alias="content"),
 ):
     note_id = str(uuid.uuid4())
-    async with aiosqlite.connect(DB_PATH) as db_write:
-        await db_write.execute(
-            "INSERT INTO caregiver_notes (id, note_type, content, created_at) VALUES (?,?,?,?)",
-            (note_id, note_type, content, time.time()),
-        )
-        await db_write.commit()
-    return {"id": note_id, "note_type": note_type, "content": content}
+    await db.execute(
+        "INSERT INTO caregiver_notes (id, note_type, content, created_at) VALUES (?,?,?,?)",
+        (note_id, note_type, content_text, time.time()),
+    )
+    await db.commit()
+    return {"id": note_id, "note_type": note_type, "content": content_text}
 
 
 @app.get("/notes")
@@ -655,7 +658,7 @@ async def list_notes(
 @app.get("/reports/export")
 async def export_report(
     db: DB,
-    days: int = Query(default=30, description="Report window: 30 or 90"),
+    days: int = Query(default=30, le=90, description="Report window: 30 or 90"),
 ):
     import datetime, json as _json
     since = time.time() - days * 86400

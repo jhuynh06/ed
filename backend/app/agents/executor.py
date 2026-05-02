@@ -22,7 +22,7 @@ from app.wandering import detect_wandering
 
 logger = logging.getLogger(__name__)
 
-_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 _CRITICS = [
     (
@@ -40,8 +40,8 @@ _CRITICS = [
 ]
 
 
-def _call_critic(name: str, criteria: str, notification: str, context: str) -> CriticVerdict:
-    response = _client.messages.create(
+async def _call_critic(name: str, criteria: str, notification: str, context: str) -> CriticVerdict:
+    response = await _client.messages.create(
         model="claude-haiku-4-5",
         max_tokens=150,
         messages=[
@@ -65,8 +65,8 @@ def _call_critic(name: str, criteria: str, notification: str, context: str) -> C
     return CriticVerdict(critic=name, verdict=verdict, feedback=feedback)
 
 
-def _rewrite_notification(notification: str, feedback: str) -> str:
-    response = _client.messages.create(
+async def _rewrite_notification(notification: str, feedback: str) -> str:
+    response = await _client.messages.create(
         model="claude-haiku-4-5",
         max_tokens=150,
         messages=[
@@ -86,7 +86,7 @@ def _rewrite_notification(notification: str, feedback: str) -> str:
 
 async def _run_mar_gate(notification: str, context: str) -> MARResult:
     """Run 3 critics in parallel, rewrite up to 2 rounds if any say REVISE."""
-    verdicts = [_call_critic(name, criteria, notification, context) for name, criteria in _CRITICS]
+    verdicts = list(await asyncio.gather(*[_call_critic(name, criteria, notification, context) for name, criteria in _CRITICS]))
 
     rounds = 0
     for _ in range(2):
@@ -94,8 +94,8 @@ async def _run_mar_gate(notification: str, context: str) -> MARResult:
         if not revisions:
             break
         feedback = "\n".join(f"[{v.critic}]: {v.feedback}" for v in revisions)
-        notification = _rewrite_notification(notification, feedback)
-        verdicts = [_call_critic(name, criteria, notification, context) for name, criteria in _CRITICS]
+        notification = await _rewrite_notification(notification, feedback)
+        verdicts = list(await asyncio.gather(*[_call_critic(name, criteria, notification, context) for name, criteria in _CRITICS]))
         rounds += 1
 
     return MARResult(
@@ -122,11 +122,14 @@ async def executor_node(state: AgentState) -> AgentState:
 
         # Generate TTS audio for speak actions
         if action.get("action") == "speak" and action.get("payload", {}).get("text"):
-            from app.tts import stream_tts
-            chunks: list[bytes] = []
-            async for chunk in stream_tts(action["payload"]["text"]):
-                chunks.append(chunk)
-            tts_chunks.append(chunks)
+            try:
+                from app.tts import stream_tts
+                chunks: list[bytes] = []
+                async for chunk in stream_tts(action["payload"]["text"]):
+                    chunks.append(chunk)
+                tts_chunks.append(chunks)
+            except Exception as exc:
+                logger.warning("TTS failed for action %s: %s", action, exc)
 
     # Wandering/disorientation detection from transcript
     snap = state.get("sensor_snapshot")
@@ -140,8 +143,8 @@ async def executor_node(state: AgentState) -> AgentState:
             if not state.get("notification"):
                 state = {**state, "notification": wandering_alert.message}
 
-    mar_result = None
     notification = state.get("notification")
+    mar_result = None
     if notification:
         context = state.get("semantic_observation", "")
         mar = await _run_mar_gate(notification, context)

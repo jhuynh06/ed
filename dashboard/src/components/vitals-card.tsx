@@ -1,7 +1,8 @@
 "use client"
 
 import type { VitalsUpdate } from '@/lib/sse-types'
-import { mockHRHistory } from '@/lib/mock-data'
+import { useEffect, useState } from 'react'
+import { fetchVitals } from '@/lib/api'
 
 interface VitalsCardProps {
   vitals: VitalsUpdate | null
@@ -13,8 +14,15 @@ export function VitalsCard({ vitals }: VitalsCardProps) {
   const baseline = vitals?.baseline_bpm ?? 72
   const elevation = bpm > 0 ? ((bpm - baseline) / baseline * 100) : 0
   
-  // Use mock HR history for sparkline
-  const history = mockHRHistory.slice(-10) // Last 10 readings
+  const [history, setHistory] = useState<Array<{ bpm: number }>>([])
+
+  useEffect(() => {
+    let mounted = true
+    fetchVitals(1).then(data => {
+      if (mounted) setHistory(data.map(v => ({ bpm: v.bpm })))
+    }).catch(() => {})
+    return () => { mounted = false }
+  }, [])
   
   const generateSparklinePath = () => {
     if (history.length === 0) return ''
@@ -90,7 +98,7 @@ export function VitalsCard({ vitals }: VitalsCardProps) {
             {history.length > 0 ? `${Math.round(history[history.length - 1].bpm)} bpm` : '-- bpm'}
           </span>
         </div>
-        <svg viewBox="0 0 100 22" className="w-full h-6" preserveAspectRatio="none">
+        <svg viewBox="0 0 100 22" className="w-full h-6" preserveAspectRatio="none" aria-label="Heart rate sparkline">
           <path 
             d={generateSparklinePath()} 
             fill="none" 

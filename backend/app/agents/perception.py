@@ -15,6 +15,7 @@ from collections import OrderedDict
 import anthropic
 
 from app.agents.state import AgentState
+from app.audio_pipeline import AudioResult
 from app.emotion_fusion import EmotionFuser
 from app.models import (
     HRState,
@@ -23,7 +24,7 @@ from app.models import (
     TouchState,
 )
 
-_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 _fuser = EmotionFuser()
 
 # ── Perception cache ──────────────────────────────────────────────────
@@ -47,7 +48,7 @@ def _quantize_key(snap: SensorSnapshot) -> str:
         round(snap.hr.elevation_pct / 5) * 5 if snap.hr.valid else -1,
         int(snap.touch.any_contact),
         round(snap.touch.squeeze_intensity, 1),
-        snap.speech_text or "",
+        (snap.speech_text or "")[:50],
     )
     return hashlib.md5(str(parts).encode()).hexdigest()
 
@@ -143,7 +144,7 @@ async def perception_node(state: AgentState) -> AgentState:
         _cache.move_to_end(cache_key)
         semantic_text = _cache[cache_key]
     else:
-        response = _client.messages.create(
+        response = await _client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=150,
             system=_SYSTEM,
@@ -159,8 +160,7 @@ async def perception_node(state: AgentState) -> AgentState:
         "sensor_snapshot": snap,
         "semantic_observation": semantic_text,
         "fused_emotion": _fuser.fuse(
-            # Build a minimal AudioResult from the snapshot's vocal data
-            __import__("app.audio_pipeline", fromlist=["AudioResult"]).AudioResult(
+            AudioResult(
                 speech_detected=snap.vocal_emotion is not None,
                 transcription=snap.speech_text,
                 valence=snap.vocal_emotion.valence if snap.vocal_emotion else 0.0,

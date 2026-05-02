@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
 # ── EWMA Baselines ───────────────────────────────────────────────────
@@ -44,15 +44,13 @@ agitation_baseline = EWMABaseline()
 
 # ── HRV (RMSSD) from R-R intervals ──────────────────────────────────
 
-_rr_buffer: list[float] = []
 _RR_MAX = 120  # ~2 minutes of beats at 60bpm
+_rr_buffer: deque = deque(maxlen=_RR_MAX)
 
 
 def push_rr_interval(rr_ms: float) -> None:
     """Add an R-R interval (milliseconds) to the rolling buffer."""
     _rr_buffer.append(rr_ms)
-    if len(_rr_buffer) > _RR_MAX:
-        _rr_buffer.pop(0)
 
 
 def compute_rmssd() -> float | None:
