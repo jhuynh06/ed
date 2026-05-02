@@ -5,42 +5,65 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 export interface Patient {
   id: string
   name: string
-  age: number
-  stage: string
-  avatar: string       // single letter
-  baselineHr: number
-  companion: string    // name of their plushie
-  since: string        // e.g. "Mar 2026"
+  birthday: string   // ISO date string e.g. "1946-03-15"
+  age: number        // derived from birthday
+  avatar: string
+  companion: string
+  since: string
 }
-
-const PATIENTS: Patient[] = [
-  { id: 'p1', name: 'Margaret Chen', age: 78, stage: 'Mild', avatar: 'M', baselineHr: 72, companion: 'Ed', since: 'Mar 2026' },
-  { id: 'p2', name: 'Robert Williams', age: 82, stage: 'Moderate', avatar: 'R', baselineHr: 68, companion: 'Benny', since: 'Jan 2026' },
-  { id: 'p3', name: 'Dorothy Park', age: 75, stage: 'Mild', avatar: 'D', baselineHr: 76, companion: 'Clover', since: 'Apr 2026' },
-  { id: 'p4', name: 'James Okafor', age: 80, stage: 'Moderate', avatar: 'J', baselineHr: 70, companion: 'Maple', since: 'Feb 2026' },
-]
 
 interface PatientContextValue {
   patients: Patient[]
-  active: Patient
+  active: Patient | null
   setActiveId: (id: string) => void
+  addPatient: (p: { name: string; birthday: string; companion: string }) => void
+  removePatient: (id: string) => void
   sidebarOpen: boolean
   toggleSidebar: () => void
 }
 
 const PatientContext = createContext<PatientContextValue | null>(null)
 
+let nextId = 1
+
 export function PatientProvider({ children }: { children: ReactNode }) {
-  const [activeId, setActiveId] = useState('p1')
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const active = PATIENTS.find(p => p.id === activeId) ?? PATIENTS[0]
+  const active = patients.find(p => p.id === activeId) ?? patients[0] ?? null
+
+  function addPatient(p: { name: string; birthday: string; companion: string }) {
+    const id = `p${nextId++}`
+    const now = new Date()
+    const since = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    const birthDate = new Date(p.birthday)
+    const age = Math.floor((now.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    const newPatient: Patient = {
+      id,
+      name: p.name,
+      birthday: p.birthday,
+      age,
+      avatar: p.name.charAt(0).toUpperCase(),
+      companion: p.companion || 'Theodore',
+      since,
+    }
+    setPatients(prev => [...prev, newPatient])
+    if (!activeId) setActiveId(id)
+  }
+
+  function removePatient(id: string) {
+    setPatients(prev => prev.filter(p => p.id !== id))
+    if (activeId === id) setActiveId(null)
+  }
 
   return (
     <PatientContext.Provider value={{
-      patients: PATIENTS,
+      patients,
       active,
       setActiveId,
+      addPatient,
+      removePatient,
       sidebarOpen,
       toggleSidebar: () => setSidebarOpen(prev => !prev),
     }}>

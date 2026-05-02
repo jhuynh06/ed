@@ -19,12 +19,15 @@ export function Topbar({ connected = false }: TopbarProps) {
           aria-label="Open patient roster"
           title="Switch patient"
         >
-          {active.avatar}
+          {active?.avatar ?? 'T'}
         </button>
         <div>
-          <div className="micro">Caregiver dashboard · {active.name}</div>
+          <div className="micro">Caregiver dashboard{active ? ` · ${active.name}` : ''}</div>
           <h1 className="font-serif text-[22px] font-normal tracking-tight leading-tight m-0">
-            {active.companion} <span className="text-[var(--ink-3)] font-light">· {active.stage.toLowerCase()} stage</span>
+            {active ? active.companion : 'Theodore'}{' '}
+            <span className="text-[var(--ink-3)] font-light">
+              · {active ? `${active.age}y` : 'no patient selected'}
+            </span>
           </h1>
         </div>
       </div>

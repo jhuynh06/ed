@@ -61,8 +61,20 @@ DB_PATH = os.environ.get("SQLITE_PATH", "ed.db")
 # ── DB schema ────────────────────────────────────────────────────────
 
 _SCHEMA = """
+CREATE TABLE IF NOT EXISTS patients (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    age         INTEGER NOT NULL,
+    stage       TEXT NOT NULL,
+    companion   TEXT NOT NULL,
+    baseline_hr INTEGER NOT NULL DEFAULT 72,
+    since_date  TEXT NOT NULL,
+    created_at  REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS episodes (
     id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
     started_at  REAL NOT NULL,
     ended_at    REAL,
     peak        REAL,
@@ -72,6 +84,7 @@ CREATE TABLE IF NOT EXISTS episodes (
 
 CREATE TABLE IF NOT EXISTS vitals (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
     recorded_at REAL NOT NULL,
     bpm         INTEGER,
     spo2        INTEGER,
@@ -80,6 +93,7 @@ CREATE TABLE IF NOT EXISTS vitals (
 
 CREATE TABLE IF NOT EXISTS family_clips (
     id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
     label       TEXT NOT NULL,
     relation    TEXT NOT NULL,
     filename    TEXT NOT NULL,
@@ -88,6 +102,7 @@ CREATE TABLE IF NOT EXISTS family_clips (
 
 CREATE TABLE IF NOT EXISTS medications (
     id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
     name        TEXT NOT NULL,
     dosage      TEXT NOT NULL,
     schedule    TEXT NOT NULL,
@@ -97,7 +112,8 @@ CREATE TABLE IF NOT EXISTS medications (
 
 CREATE TABLE IF NOT EXISTS daily_metrics (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    date_str        TEXT NOT NULL UNIQUE,
+    patient_id      TEXT NOT NULL DEFAULT 'p1',
+    date_str        TEXT NOT NULL,
     day_quality     INTEGER,
     episode_count   INTEGER DEFAULT 0,
     avg_agitation   REAL DEFAULT 0,
@@ -112,11 +128,13 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
     hr_baseline     REAL,
     agitation_baseline REAL,
     drift_alert     TEXT,
-    created_at      REAL NOT NULL
+    created_at      REAL NOT NULL,
+    UNIQUE(patient_id, date_str)
 );
 
 CREATE TABLE IF NOT EXISTS caregiver_notes (
     id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
     note_type   TEXT NOT NULL,
     content     TEXT NOT NULL,
     created_at  REAL NOT NULL
@@ -124,9 +142,19 @@ CREATE TABLE IF NOT EXISTS caregiver_notes (
 
 CREATE TABLE IF NOT EXISTS notification_log (
     id          TEXT PRIMARY KEY,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
     message     TEXT NOT NULL,
     priority    TEXT NOT NULL,
     suppressed  INTEGER DEFAULT 0,
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id  TEXT NOT NULL DEFAULT 'p1',
+    sender      TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    msg_type    TEXT NOT NULL DEFAULT 'text',
     created_at  REAL NOT NULL
 );
 """
@@ -339,6 +367,55 @@ async def cancel_mock_scenario():
 
 # ── REST — Status ─────────────────────────────────────────────────────
 
+@app.get("/patients")
+async def list_patients(db: DB):
+    async with db.execute("SELECT * FROM patients ORDER BY name ASC") as cur:
+        rows = await cur.fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/patients/{patient_id}")
+async def get_patient(db: DB, patient_id: str):
+    async with db.execute("SELECT * FROM patients WHERE id = ?", (patient_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return dict(row)
+
+
+@app.post("/patients", status_code=201)
+async def add_patient(
+    db: DB,
+    name: str = Query(...),
+    age: int = Query(...),
+    stage: str = Query(default="Mild", description="Mild or Moderate"),
+    companion: str = Query(default="Theodore"),
+    baseline_hr: int = Query(default=72),
+):
+    import datetime
+    patient_id = str(uuid.uuid4())[:8]
+    since = datetime.date.today().strftime("%b %Y")
+    await db.execute(
+        "INSERT INTO patients (id, name, age, stage, companion, baseline_hr, since_date, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (patient_id, name, age, stage, companion, baseline_hr, since, time.time()),
+    )
+    await db.commit()
+    return {"id": patient_id, "name": name, "age": age, "stage": stage, "companion": companion, "baseline_hr": baseline_hr, "since_date": since}
+
+
+@app.delete("/patients/{patient_id}", status_code=204)
+async def delete_patient(db: DB, patient_id: str):
+    async with db.execute("SELECT id FROM patients WHERE id = ?", (patient_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    # Delete patient and all related data
+    for table in ("episodes", "vitals", "family_clips", "medications", "daily_metrics", "caregiver_notes", "notification_log", "chat_messages"):
+        await db.execute(f"DELETE FROM {table} WHERE patient_id = ?", (patient_id,))
+    await db.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
+    await db.commit()
+
+
 @app.get("/status")
 async def get_status():
     return _last_status
@@ -349,11 +426,12 @@ async def get_status():
 @app.get("/episodes")
 async def list_episodes(
     db: DB,
+    patient_id: str = Query(default="p1"),
     limit: int = Query(default=20, le=100),
 ):
     import json as _json
     async with db.execute(
-        "SELECT * FROM episodes ORDER BY started_at DESC LIMIT ?", (limit,)
+        "SELECT * FROM episodes WHERE patient_id = ? ORDER BY started_at DESC LIMIT ?", (patient_id, limit,)
     ) as cur:
         rows = await cur.fetchall()
 
@@ -378,11 +456,12 @@ async def get_episode(db: DB, episode_id: str):
 @app.get("/vitals")
 async def list_vitals(
     db: DB,
+    patient_id: str = Query(default="p1"),
     hours: float = Query(default=24.0, description="Look-back window in hours"),
 ):
     since = time.time() - hours * 3600
     async with db.execute(
-        "SELECT * FROM vitals WHERE recorded_at >= ? ORDER BY recorded_at ASC", (since,)
+        "SELECT * FROM vitals WHERE patient_id = ? AND recorded_at >= ? ORDER BY recorded_at ASC", (patient_id, since,)
     ) as cur:
         rows = await cur.fetchall()
     return [dict(row) for row in rows]
@@ -453,9 +532,9 @@ CLIPS_DIR = os.environ.get("CLIPS_DIR", "clips")
 
 
 @app.get("/family/clips")
-async def list_clips(db: DB):
+async def list_clips(db: DB, patient_id: str = Query(default="p1")):
     async with db.execute(
-        "SELECT * FROM family_clips ORDER BY uploaded_at DESC"
+        "SELECT * FROM family_clips WHERE patient_id = ? ORDER BY uploaded_at DESC", (patient_id,)
     ) as cur:
         rows = await cur.fetchall()
     return [dict(row) for row in rows]
@@ -518,9 +597,9 @@ async def delete_clip(db: DB, clip_id: str):
 
 
 @app.get("/medications")
-async def list_medications(db: DB):
+async def list_medications(db: DB, patient_id: str = Query(default="p1")):
     async with db.execute(
-        "SELECT * FROM medications ORDER BY created_at DESC"
+        "SELECT * FROM medications WHERE patient_id = ? ORDER BY created_at DESC", (patient_id,)
     ) as cur:
         rows = await cur.fetchall()
     return [dict(row) for row in rows]
@@ -642,17 +721,54 @@ async def add_note(
 @app.get("/notes")
 async def list_notes(
     db: DB,
+    patient_id: str = Query(default="p1"),
     days: int = Query(default=7, description="Look-back window in days"),
 ):
     since = time.time() - days * 86400
     async with db.execute(
-        "SELECT * FROM caregiver_notes WHERE created_at >= ? ORDER BY created_at DESC", (since,)
+        "SELECT * FROM caregiver_notes WHERE patient_id = ? AND created_at >= ? ORDER BY created_at DESC", (patient_id, since,)
     ) as cur:
         rows = await cur.fetchall()
     return [dict(row) for row in rows]
 
 
 # ── REST — Exportable Report ─────────────────────────────────────────
+
+
+@app.get("/chat")
+async def list_chat(
+    db: DB,
+    patient_id: str = Query(default="p1"),
+    limit: int = Query(default=50, le=200),
+):
+    async with db.execute(
+        "SELECT * FROM chat_messages WHERE patient_id = ? ORDER BY created_at DESC LIMIT ?",
+        (patient_id, limit),
+    ) as cur:
+        rows = await cur.fetchall()
+    return [dict(row) for row in reversed(rows)]
+
+
+@app.post("/chat", status_code=201)
+async def add_chat_message(
+    db: DB,
+    patient_id: str = Query(default="p1"),
+    sender: str = Query(..., description="'user' or 'theodore'"),
+    content: str = Query(...),
+    msg_type: str = Query(default="text", description="'text' or 'audio'"),
+):
+    await db.execute(
+        "INSERT INTO chat_messages (patient_id, sender, content, msg_type, created_at) VALUES (?,?,?,?,?)",
+        (patient_id, sender, content, msg_type, time.time()),
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@app.delete("/chat", status_code=204)
+async def clear_chat(db: DB, patient_id: str = Query(default="p1")):
+    await db.execute("DELETE FROM chat_messages WHERE patient_id = ?", (patient_id,))
+    await db.commit()
 
 
 @app.get("/reports/export")

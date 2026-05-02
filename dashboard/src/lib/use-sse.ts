@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { SSEEventSchema, type UseSSEReturn, type SSEEvent, type AgitationUpdate, type EpisodeStart, type EpisodeEnd, type Notification, type VitalsUpdate } from './sse-types'
-import { SSE_URL } from './api'
 
 export function useSSE(): UseSSEReturn {
   const [connected, setConnected] = useState(false)
@@ -50,7 +49,7 @@ export function useSSE(): UseSSEReturn {
 
     const connect = () => {
       try {
-        eventSource = new EventSource(SSE_URL)
+        eventSource = new EventSource('/api/sse')
 
         eventSource.onopen = () => {
           setConnected(true)

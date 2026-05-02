@@ -1,8 +1,8 @@
 "use client"
 
 import type { VitalsUpdate } from '@/lib/sse-types'
-import { useEffect, useState } from 'react'
-import { fetchVitals } from '@/lib/api'
+import { useState } from 'react'
+import { mockHRHistory } from '@/lib/mock-data'
 
 interface VitalsCardProps {
   vitals: VitalsUpdate | null
@@ -14,15 +14,7 @@ export function VitalsCard({ vitals }: VitalsCardProps) {
   const baseline = vitals?.baseline_bpm ?? 72
   const elevation = bpm > 0 ? ((bpm - baseline) / baseline * 100) : 0
   
-  const [history, setHistory] = useState<Array<{ bpm: number }>>([])
-
-  useEffect(() => {
-    let mounted = true
-    fetchVitals(1).then(data => {
-      if (mounted) setHistory(data.map(v => ({ bpm: v.bpm })))
-    }).catch(() => {})
-    return () => { mounted = false }
-  }, [])
+  const [history] = useState(() => mockHRHistory.slice(-10))
   
   const generateSparklinePath = () => {
     if (history.length === 0) return ''
