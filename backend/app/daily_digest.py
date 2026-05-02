@@ -20,6 +20,13 @@ class DigestInput:
     sundowning_occurred: bool
     peak_agitation_hour: int | None  # hour of day with highest agitation
     top_flags: list[str]             # CDR flags triggered today
+    # Tier 1+2 observability
+    sleep_hours: float | None = None
+    sleep_wake_count: int | None = None
+    speech_minutes: float | None = None
+    day_quality: int | None = None   # 1-5
+    vocabulary_ttr: float | None = None
+    medications: list[str] | None = None  # ["Donepezil 10mg bedtime", ...]
 
 
 @dataclass
@@ -65,9 +72,14 @@ def _build_prompt(inp: DigestInput) -> str:
 
 Patient: {inp.patient_name}
 Date: {inp.date_str}
+Day quality score: {inp.day_quality or 'N/A'}/5
 Overall trend: {inp.trend_direction}
 Sundowning occurred: {inp.sundowning_occurred}
 Peak agitation hour: {peak_hour}
+Sleep: {f'{inp.sleep_hours}h, woke {inp.sleep_wake_count} times' if inp.sleep_hours is not None else 'Not available'}
+Speech engagement: {f'{inp.speech_minutes} minutes' if inp.speech_minutes is not None else 'Not available'}
+Vocabulary diversity (TTR): {inp.vocabulary_ttr if inp.vocabulary_ttr else 'Not available'}
+Medications: {', '.join(inp.medications) if inp.medications else 'None listed'}
 Episodes ({len(inp.episodes)} total):
 {episodes_text}
 CDR scores: {cdr_text}
@@ -75,16 +87,21 @@ CDR flags today: {flags_text}
 Anomalies:
 {anomalies_text}
 
-Please respond with exactly these three labeled sections:
+Please respond with exactly these sections. Write as if you're writing a warm letter to a family member, not a clinical report. Use the patient's name.
 
 SUMMARY:
-Write a 3-4 sentence warm, clinical summary paragraph for a family caregiver. Be empathetic and clear, avoiding jargon. Mention key patterns and reassure where appropriate.
+Write a 4-5 sentence warm summary answering these questions a family caregiver cares about most:
+1. How did they sleep last night?
+2. Were they upset or confused today? (episodes)
+3. Did anything notable happen? (incidents, sundowning)
+4. Were they social/engaged? (speech, touch)
+5. Are they getting better or worse? (trend)
 
 MOOD:
 Describe the overall mood arc of the day in one short phrase (e.g. "calm morning, agitated afternoon, calm evening").
 
 ACTIONS:
-List 2-3 concrete action items for the caregiver, one per line, starting with a dash (-).
+List 2-3 concrete, specific action items for the caregiver, one per line, starting with a dash (-).
 """
 
 

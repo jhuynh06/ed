@@ -1,57 +1,27 @@
 import type { AgitationUpdate, EpisodeStart, EpisodeEnd, Notification, VitalsUpdate, CriticVerdict } from './sse-types'
 
+// Fixed base timestamp — no Date.now() to avoid SSR/client hydration mismatch
+const BASE_TS = 1746187200
+
 export const mockAgitation: AgitationUpdate = {
   type: "agitation_update",
-  timestamp: Date.now() / 1000,
+  timestamp: BASE_TS,
   score: 34,
   risk: "medium"
 }
 
 export const mockEpisodes: Array<{ start: EpisodeStart; end?: EpisodeEnd }> = [
   {
-    start: {
-      type: "episode_start",
-      id: "ep_001",
-      timestamp: Date.now() / 1000 - 3600,
-      agitation: 65
-    },
-    end: {
-      type: "episode_end",
-      id: "ep_001",
-      duration: 420,
-      peak: 78,
-      outcome: "calm_restored"
-    }
+    start: { type: "episode_start", id: "ep_001", timestamp: BASE_TS - 3600, agitation: 65 },
+    end: { type: "episode_end", id: "ep_001", duration: 420, peak: 78, outcome: "calm_restored" }
   },
   {
-    start: {
-      type: "episode_start",
-      id: "ep_002",
-      timestamp: Date.now() / 1000 - 7200,
-      agitation: 45
-    },
-    end: {
-      type: "episode_end",
-      id: "ep_002",
-      duration: 180,
-      peak: 52,
-      outcome: "no_change"
-    }
+    start: { type: "episode_start", id: "ep_002", timestamp: BASE_TS - 7200, agitation: 45 },
+    end: { type: "episode_end", id: "ep_002", duration: 180, peak: 52, outcome: "no_change" }
   },
   {
-    start: {
-      type: "episode_start",
-      id: "ep_003",
-      timestamp: Date.now() / 1000 - 10800,
-      agitation: 72
-    },
-    end: {
-      type: "episode_end",
-      id: "ep_003",
-      duration: 840,
-      peak: 85,
-      outcome: "escalated"
-    }
+    start: { type: "episode_start", id: "ep_003", timestamp: BASE_TS - 10800, agitation: 72 },
+    end: { type: "episode_end", id: "ep_003", duration: 840, peak: 85, outcome: "escalated" }
   }
 ]
 
@@ -77,7 +47,7 @@ export const mockNotifications: Notification[] = [
   {
     type: "notification",
     id: "notif_001",
-    message: "Agitation didn't settle after intervention - spike began 9:34a, Theodore tried music and breathing but jerk magnitude still elevated after 7 minutes",
+    message: "Agitation didn't settle after intervention - spike began 9:34a, Ed tried music and breathing but jerk magnitude still elevated after 7 minutes",
     priority: "urgent",
     mar_trace: mockCriticVerdicts
   },
@@ -118,32 +88,17 @@ export const mockDailyDigest = {
 }
 
 export const mockFamilyClips = [
-  {
-    id: "clip_001",
-    name: "Grandson Michael",
-    duration_s: 12,
-    uploaded_at: Date.now() / 1000 - 86400
-  },
-  {
-    id: "clip_002", 
-    name: "Daughter Sarah",
-    duration_s: 8,
-    uploaded_at: Date.now() / 1000 - 172800
-  },
-  {
-    id: "clip_003",
-    name: "Son David",
-    duration_s: 15,
-    uploaded_at: Date.now() / 1000 - 259200
-  }
+  { id: "clip_001", name: "Grandson Michael", duration_s: 12, uploaded_at: BASE_TS - 86400 },
+  { id: "clip_002", name: "Daughter Sarah", duration_s: 8, uploaded_at: BASE_TS - 172800 },
+  { id: "clip_003", name: "Son David", duration_s: 15, uploaded_at: BASE_TS - 259200 },
 ]
 
 export const mockHRHistory = Array.from({ length: 20 }, (_, i) => ({
-  timestamp: Date.now() / 1000 - (19 - i) * 300, // 5-minute intervals
-  bpm: 72 + Math.sin(i * 0.3) * 8 + Math.random() * 4
+  timestamp: BASE_TS - (19 - i) * 300,
+  bpm: 72 + Math.sin(i * 0.3) * 8 + (i % 3) * 1.2
 }))
 
 export const mockAgitationHistory = Array.from({ length: 20 }, (_, i) => ({
-  timestamp: Date.now() / 1000 - (19 - i) * 300,
-  score: 25 + Math.sin(i * 0.2) * 15 + Math.random() * 10
+  timestamp: BASE_TS - (19 - i) * 300,
+  score: 25 + Math.sin(i * 0.2) * 15 + (i % 4) * 2
 }))

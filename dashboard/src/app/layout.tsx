@@ -25,7 +25,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Theodore — Caregiver Dashboard',
+  title: 'Ed — Caregiver Dashboard',
   description: 'Emotionally intelligent companion bear dashboard',
 }
 

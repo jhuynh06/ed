@@ -6,6 +6,7 @@ import { SSEEventSchema, type UseSSEReturn, type SSEEvent, type AgitationUpdate,
 export function useSSE(): UseSSEReturn {
   const [connected, setConnected] = useState(false)
   const [latestAgitation, setLatestAgitation] = useState<AgitationUpdate | null>(null)
+  const [agitationHistory, setAgitationHistory] = useState<AgitationUpdate[]>([])
   const [episodes, setEpisodes] = useState<Array<{ start: EpisodeStart; end?: EpisodeEnd }>>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [latestVitals, setLatestVitals] = useState<VitalsUpdate | null>(null)
@@ -14,6 +15,7 @@ export function useSSE(): UseSSEReturn {
     switch (event.type) {
       case 'agitation_update':
         setLatestAgitation(event)
+        setAgitationHistory(prev => [...prev, event].slice(-120))
         break
       
       case 'episode_start':
@@ -99,6 +101,7 @@ export function useSSE(): UseSSEReturn {
   return {
     connected,
     latestAgitation,
+    agitationHistory,
     episodes,
     notifications,
     latestVitals

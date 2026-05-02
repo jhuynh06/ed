@@ -17,7 +17,7 @@ export function DailyDigestCard({ digest }: DailyDigestCardProps) {
     <div className="card p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <div>
-          <div className="micro">Today with Theodore</div>
+          <div className="micro">Today with Ed</div>
           <h2 className="font-serif text-[18px] font-normal tracking-tight leading-tight m-0 mt-1">
             {digest.summary_markdown}
           </h2>

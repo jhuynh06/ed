@@ -5,13 +5,13 @@ import { mockAgitationHistory } from '@/lib/mock-data'
 
 interface AgitationTimelineProps {
   agitation: AgitationUpdate | null
+  agitationHistory: AgitationUpdate[]
   episodes: Array<{ start: EpisodeStart; end?: any }>
   connected: boolean
 }
 
-export function AgitationTimeline({ agitation, episodes, connected }: AgitationTimelineProps) {
-  // Use mock data for now - in real implementation this would come from props
-  const history = mockAgitationHistory
+export function AgitationTimeline({ agitation, agitationHistory, episodes, connected }: AgitationTimelineProps) {
+  const history = agitationHistory.length > 0 ? agitationHistory : mockAgitationHistory
   
   const getScoreColor = (score: number) => {
     if (score < 30) return 'var(--sage)'
@@ -28,7 +28,7 @@ export function AgitationTimeline({ agitation, episodes, connected }: AgitationT
     const maxScore = 100
     
     const points = history.map((point, index) => {
-      const x = (index / (history.length - 1)) * width
+      const x = history.length > 1 ? (index / (history.length - 1)) * width : width / 2
       const y = height - (point.score / maxScore) * height
       return `${x},${y}`
     })
@@ -130,7 +130,7 @@ export function AgitationTimeline({ agitation, episodes, connected }: AgitationT
           
           {/* Data points */}
           {history.map((point, index) => {
-            const x = (index / (history.length - 1)) * 300
+            const x = history.length > 1 ? (index / (history.length - 1)) * 300 : 150
             const y = 60 - (point.score / 100) * 60
             return (
               <circle 

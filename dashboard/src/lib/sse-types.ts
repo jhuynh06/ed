@@ -76,6 +76,7 @@ export type NotificationPriority = "info" | "warning" | "urgent";
 export interface UseSSEReturn {
   connected: boolean;
   latestAgitation: AgitationUpdate | null;
+  agitationHistory: AgitationUpdate[];
   episodes: Array<{ start: EpisodeStart; end?: EpisodeEnd }>;
   notifications: Notification[];
   latestVitals: VitalsUpdate | null;

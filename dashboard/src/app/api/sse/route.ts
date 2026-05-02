@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       notificationInterval = setInterval(() => {
         if (Math.random() < 0.3) {
           const messages = [
-            "Theodore detected elevated agitation - trying music intervention",
+            "Ed detected elevated agitation - trying music intervention",
             "Wandering language detected - 'I need to go home' - resolved quickly",
             "Heart rate elevated 15% above baseline for 3 minutes",
             "No speech detected for 10 minutes - may have dozed off",

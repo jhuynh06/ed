@@ -48,3 +48,14 @@ npm-debug.log*
 # ── Test fixtures (binary, keep tracked ones) ──
 # backend/tests/fixtures/ is tracked intentionally
 backend/tests/test_tts_output.pcm
+
+# ── Runtime data ──
+clips/
+ed.db
+
+# ── LangSmith / observability ──
+.langsmith/
+
+# ── pytest / vitest cache ──
+.pytest_cache/
+coverage/

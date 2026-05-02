@@ -3,84 +3,27 @@
 import { useState } from 'react'
 import { Topbar } from '@/components/topbar'
 import { Heatmap } from '@/components/heatmap'
+import { useSSE } from '@/lib/use-sse'
+import { AgitationScoreCard } from '@/components/agitation-score-card'
+import { AgitationTimeline } from '@/components/agitation-timeline'
+import { EpisodeList } from '@/components/episode-list'
+import { NotificationFeed } from '@/components/notification-feed'
 
 const tabs = [
   { id: 'overview', label: 'Overview', number: '01' },
   { id: 'voice', label: 'Voice & language', number: '02' },
   { id: 'body', label: 'Body & touch', number: '03' },
-  { id: 'cdr', label: 'CDR & trends', number: '04' }
+  { id: 'cdr', label: 'CDR & trends', number: '04' },
+  { id: 'episodes', label: 'Episodes', number: '05' },
 ]
 
-function OverviewPanel() {
+function OverviewPanel({ sse }: { sse: ReturnType<typeof useSSE> }) {
   return (
-    <div className="flex flex-col gap-3 h-full">
-      <div className="card p-4 flex items-center gap-6">
-        {/* Circular gauge */}
-        <div className="relative w-28 h-28 flex-none">
-          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-            <circle cx="50" cy="50" r="42" fill="none" stroke="var(--line)" strokeWidth="9" />
-            <circle 
-              cx="50" cy="50" r="42" fill="none"
-              stroke="url(#agg-grad)" strokeWidth="9"
-              strokeDasharray="263.9" strokeDashoffset="195"
-              strokeLinecap="round" 
-            />
-            <defs>
-              <linearGradient id="agg-grad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="var(--sage)" />
-                <stop offset="60%" stopColor="var(--amber)" />
-                <stop offset="100%" stopColor="var(--rose)" />
-              </linearGradient>
-            </defs>
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="font-serif text-[30px] leading-none tracking-tight">26</div>
-              <div className="micro mt-1">/ 100</div>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col gap-3">
+      <AgitationScoreCard agitation={sse.latestAgitation} vitals={sse.latestVitals} />
+      <AgitationTimeline agitation={sse.latestAgitation} agitationHistory={sse.agitationHistory} episodes={sse.episodes} connected={sse.connected} />
 
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="pip on breathe"></div>
-            <span className="micro">Composite · IMU + acoustic + touch</span>
-          </div>
-          <h2 className="font-serif text-[17px] font-normal tracking-tight leading-tight m-0">
-            Agitation score · calm window
-          </h2>
-          <div className="micro mb-3">Reweighted (no HR available) · running 5-min mean</div>
-          
-          <div className="space-y-0">
-            <div className="meter">
-              <div>
-                <div className="meter-label">Stillness</div>
-                <div className="meter-sub">imu.stillness</div>
-              </div>
-              <div className="bar calm"><i style={{ width: '68%' }}></i></div>
-              <div className="meter-num">4m 32s</div>
-            </div>
-            <div className="meter">
-              <div>
-                <div className="meter-label">Hug</div>
-                <div className="meter-sub">imu.hug</div>
-              </div>
-              <div className="bar calm"><i style={{ width: '88%' }}></i></div>
-              <div className="meter-num">held</div>
-            </div>
-            <div className="meter">
-              <div>
-                <div className="meter-label">Jerk</div>
-                <div className="meter-sub">imu.jerk</div>
-              </div>
-              <div className="bar warn"><i style={{ width: '22%' }}></i></div>
-              <div className="meter-num">0.18 g/s</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-4 flex-1">
+      <div className="card p-4">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -98,23 +41,31 @@ function OverviewPanel() {
           </span>
         </div>
 
-        <div className="grid grid-cols-[1.3fr_1fr] gap-3 items-stretch">
-          {/* Valence/Arousal plot */}
-          <div className="relative aspect-[8/5] bg-[var(--paper-3)] border border-[var(--line-soft)] rounded-lg">
-            <div className="absolute left-2 top-2 micro">High arousal</div>
-            <div className="absolute left-2 bottom-2 micro">Low arousal</div>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 micro">Positive</div>
-            <div className="absolute left-2 top-1/2 -translate-y-1/2 micro">Negative</div>
-            
-            {/* Axes */}
-            <div className="absolute left-0 right-0 top-1/2 h-px bg-[var(--line-soft)]"></div>
-            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[var(--line-soft)]"></div>
-            
-            {/* Data points */}
-            <div className="absolute w-2 h-2 rounded-full bg-[var(--ink-4)] opacity-50" style={{ left: '42%', top: '62%', transform: 'translate(-50%, -50%)' }}></div>
-            <div className="absolute w-2 h-2 rounded-full bg-[var(--ink-4)] opacity-65" style={{ left: '48%', top: '58%', transform: 'translate(-50%, -50%)' }}></div>
-            <div className="absolute w-2.5 h-2.5 rounded-full bg-[var(--ink-3)] opacity-85" style={{ left: '55%', top: '54%', transform: 'translate(-50%, -50%)' }}></div>
-            <div className="absolute w-3 h-3 rounded-full bg-[var(--amber)]" style={{ left: '62%', top: '50%', transform: 'translate(-50%, -50%)', boxShadow: '0 0 0 4px color-mix(in oklch, var(--amber) 22%, transparent)' }}></div>
+        <div className="grid grid-cols-[1.3fr_1fr] gap-3 items-start">
+          {/* Valence/Arousal plot — compact SVG with quadrants + trail */}
+          <div className="bg-[var(--paper-3)] border border-[var(--line-soft)] rounded-lg p-1">
+            <svg viewBox="0 0 200 160" className="w-full" style={{ maxHeight: '180px' }}>
+              {/* Axes */}
+              <line x1="100" y1="10" x2="100" y2="150" stroke="var(--line)" strokeWidth="0.5" />
+              <line x1="10" y1="80" x2="190" y2="80" stroke="var(--line)" strokeWidth="0.5" />
+              {/* Quadrant labels */}
+              <text x="32" y="26" fill="var(--ink-3)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="0.5">ANXIOUS</text>
+              <text x="168" y="26" fill="var(--ink-3)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="0.5">EXCITED</text>
+              <text x="32" y="146" fill="var(--ink-3)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="0.5">SAD</text>
+              <text x="168" y="146" fill="var(--ink-3)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="0.5">CALM</text>
+              {/* Axis endpoint labels */}
+              <text x="100" y="8" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="1">↑ AROUSAL</text>
+              <text x="190" y="76" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="end">+VAL</text>
+              <text x="10" y="76" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="start">−VAL</text>
+              {/* Trail line */}
+              <polyline points="84,99 96,93 110,86 124,80" fill="none" stroke="var(--ink-4)" strokeWidth="1" strokeDasharray="2 2" />
+              {/* Data points oldest → newest */}
+              <circle cx="84" cy="99" r="3" fill="var(--ink-4)" opacity="0.35" />
+              <circle cx="96" cy="93" r="3.5" fill="var(--ink-4)" opacity="0.5" />
+              <circle cx="110" cy="86" r="4" fill="var(--ink-3)" opacity="0.7" />
+              <circle cx="124" cy="80" r="9" fill="var(--amber)" opacity="0.15" />
+              <circle cx="124" cy="80" r="5" fill="var(--amber)" />
+            </svg>
           </div>
           
           {/* Stats */}
@@ -145,7 +96,7 @@ function OverviewPanel() {
 
 function VoicePanel() {
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3">
       <div className="card p-4">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -209,7 +160,7 @@ function VoicePanel() {
         </div>
       </div>
 
-      <div className="card p-4 flex-1">
+      <div className="card p-4">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -267,7 +218,7 @@ function VoicePanel() {
 
 function BodyPanel() {
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3">
       {/* Touch card */}
       <div className="card p-4">
         <div className="flex items-start justify-between mb-4">
@@ -322,7 +273,7 @@ function BodyPanel() {
       </div>
 
       {/* Body motion card */}
-      <div className="card p-4 flex-1">
+      <div className="card p-4">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -393,7 +344,7 @@ function BodyPanel() {
 
 function CDRPanel() {
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3">
       {/* CDR domain scores */}
       <div className="card p-4">
         <div className="flex items-start justify-between mb-4">
@@ -451,7 +402,7 @@ function CDRPanel() {
       </div>
 
       {/* 14-day trends */}
-      <div className="card p-4 flex-1 flex flex-col">
+      <div className="card p-4 flex flex-col">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -518,26 +469,29 @@ function CDRPanel() {
 
 export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState('overview')
+  const sse = useSSE()
 
   const renderPanel = () => {
     switch (activeTab) {
-      case 'overview': return <OverviewPanel />
+      case 'overview': return <OverviewPanel sse={sse} />
       case 'voice': return <VoicePanel />
       case 'body': return <BodyPanel />
       case 'cdr': return <CDRPanel />
-      default: return <OverviewPanel />
+      case 'episodes': return <EpisodeList episodes={sse.episodes} />
+      default: return <OverviewPanel sse={sse} />
     }
   }
 
   return (
-    <div className="relative z-10 h-screen max-w-[1500px] mx-auto p-3 grid grid-rows-[auto_1fr] gap-3">
-      <Topbar connected={true} />
+    <div className="relative z-10 h-screen overflow-hidden max-w-[1500px] mx-auto p-3 grid grid-rows-[auto_1fr] gap-3">
+      <Topbar connected={sse.connected} />
       
       {/* Main content */}
-      <div className="grid grid-cols-[minmax(0,1.18fr)_minmax(0,1fr)] gap-3 min-h-0">
-        {/* Left: Heatmap (always visible) */}
-        <div className="flex flex-col gap-3 min-h-0">
-          <Heatmap className="flex-1" />
+      <div className="grid grid-cols-[minmax(0,1.18fr)_minmax(0,1fr)] gap-3 min-h-0 h-full">
+        {/* Left column */}
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
+          <NotificationFeed notifications={sse.notifications} />
+          <Heatmap />
           
           {/* Events strip */}
           <div className="card p-3">
@@ -599,8 +553,8 @@ export default function AnalysisPage() {
         </div>
         
         {/* Right: Tabs + Tab content */}
-        <div className="flex flex-col gap-3 min-h-0">
-          <div className="flex items-center gap-1 p-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-xl shadow-[var(--shadow-card)] w-fit">
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
+          <div className="flex items-center gap-1 p-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-xl shadow-[var(--shadow-card)] w-fit sticky top-0 z-10">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -617,7 +571,7 @@ export default function AnalysisPage() {
               </button>
             ))}
           </div>
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0">
             {renderPanel()}
           </div>
         </div>

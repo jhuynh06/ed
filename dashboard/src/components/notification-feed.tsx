@@ -88,7 +88,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
           {getNotificationIcon(notification.priority)}
         </div>
         <span className="font-mono text-[10px] tracking-wider uppercase text-[var(--ink-3)]">
-          Theodore · live
+          Ed · live
         </span>
         <span className="notif-priority">
           {notification.priority}
@@ -112,7 +112,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
       <div className="notif-actions">
         {notification.priority === 'urgent' && (
           <>
-            <button className="btn btn-primary">Call Theodore</button>
+            <button className="btn btn-primary">Call Ed</button>
             <button className="btn">Listen in</button>
             <button className="btn btn-ghost">I'm on my way</button>
           </>

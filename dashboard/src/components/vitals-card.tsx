@@ -26,7 +26,7 @@ export function VitalsCard({ vitals }: VitalsCardProps) {
     const range = maxBpm - minBpm || 1
     
     const points = history.map((point, index) => {
-      const x = (index / (history.length - 1)) * width
+      const x = history.length > 1 ? (index / (history.length - 1)) * width : width / 2
       const y = height - ((point.bpm - minBpm) / range) * height
       return `${x},${y}`
     })

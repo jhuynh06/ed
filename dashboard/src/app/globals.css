@@ -36,7 +36,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 body {
   font-family: var(--sans);
   color: var(--ink);
@@ -332,4 +332,31 @@ body::before {
   flex-direction: column;
   gap: 8px;
   max-width: 100%;
+}
+
+/* ── Scrollbars ──────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: oklch(0.72 0.02 60 / 0.35) transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  transition: background 0.3s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: oklch(0.72 0.02 60 / 0.35);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.60 0.03 60 / 0.5);
 }

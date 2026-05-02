@@ -43,7 +43,8 @@ class EventBus:
                 pass  # slow consumer — drop rather than block
 
     def format_sse(self, event: SSEEvent) -> str:
-        return f"event: {event.type}\ndata: {json.dumps(event.model_dump())}\n\n"
+        # No named event: field — browser EventSource.onmessage only fires for unnamed events
+        return f"data: {json.dumps(event.model_dump())}\n\n"
 
 
 # Module-level singleton

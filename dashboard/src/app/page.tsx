@@ -179,8 +179,8 @@ function BodyStatusCard() {
         <div className="relative w-48 h-full max-h-64">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/theodore-plushie.png"
-            alt="Theodore plushie — sensor body status"
+            src="/ed-plushie.png"
+            alt="Ed plushie — sensor body status"
             className="w-full h-full object-contain drift"
             draggable={false}
           />
@@ -225,7 +225,7 @@ function TodaysInsightCard() {
       </div>
 
       <p className="font-serif text-[14.5px] leading-relaxed text-[var(--ink)] m-0">
-        Theodore held the cushion for over four minutes this morning — his longest contact this week.
+        Ed held the cushion for over four minutes this morning — his longest contact this week.
         His tone has been warm with several spontaneous stories, and yesterday&apos;s restlessness has
         eased noticeably. He mentioned Margie twice and asked about the grandkids unprompted.
       </p>
@@ -292,13 +292,13 @@ function VoiceTransmitCard() {
             ? 'bg-[var(--rose)] text-white shadow-[0_0_0_4px_var(--rose-soft)]'
             : 'bg-[var(--ink)] text-[var(--paper)]'
         }`}
-        aria-label={recording ? 'Stop recording' : 'Talk to Theodore'}
+        aria-label={recording ? 'Stop recording' : 'Talk to Ed'}
       >
         {recording ? <X size={16} /> : <Mic size={16} />}
       </button>
       <div className="flex-1 min-w-0">
         <div className="font-serif text-[14px] leading-tight">
-          {recording ? 'Transmitting to Theodore...' : 'Tunnel in'}
+          {recording ? 'Transmitting to Ed...' : 'Tunnel in'}
         </div>
         <div className="micro mt-0.5">
           {recording
@@ -332,11 +332,11 @@ function ChatLog() {
   const [message, setMessage] = useState('')
 
   const messages = [
-    { from: 'theodore', time: '9:42', text: 'Good morning, Theodore. Did you sleep well?' },
+    { from: 'ed', time: '9:42', text: 'Good morning, Ed. Did you sleep well?' },
     { from: 'user', time: '9:42', type: 'audio' as const, duration: '0:14' },
-    { from: 'theodore', time: '9:43', text: "Margie called yesterday — would you like to hear what she said?" },
+    { from: 'ed', time: '9:43', text: "Margie called yesterday — would you like to hear what she said?" },
     { from: 'user', time: '9:43', text: 'Yes, please. Did she mention the grandkids?' },
-    { from: 'theodore', time: '9:44', text: "Lily started piano lessons. The dog still won't eat the new food." },
+    { from: 'ed', time: '9:44', text: "Lily started piano lessons. The dog still won't eat the new food." },
     { from: 'user', time: '9:45', text: "Ha — that dog. Reminds me of the old setter we had on the lake." },
   ]
 
@@ -371,7 +371,7 @@ function ChatLog() {
         {messages.map((msg, i) => (
           <div key={i}>
             <div className="micro mb-1">
-              {msg.from === 'theodore' ? 'Theodore' : 'You'} · {msg.time}
+              {msg.from === 'ed' ? 'Ed' : 'You'} · {msg.time}
             </div>
             {msg.type === 'audio' ? (
               <div className={`inline-flex items-center gap-3 px-4 py-3 rounded-2xl max-w-[85%] ${
@@ -420,7 +420,7 @@ function ChatLog() {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Send a message to Theodore..."
+            placeholder="Send a message to Ed..."
             className="flex-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-full px-4 py-2.5 text-[13px] placeholder:text-[var(--ink-4)]"
           />
           <button className="btn btn-primary gap-1.5 py-2.5">
@@ -440,6 +440,7 @@ export default function Dashboard() {
     <div className="relative z-10 h-screen max-w-[1560px] mx-auto px-3.5 py-2.5 grid grid-rows-[auto_1fr] gap-2.5">
       <Topbar connected={connected} />
 
+      {/* Main 3-column grid matching Ed.html layout */}
       <div
         className="grid gap-2.5 min-h-0"
         style={{

@@ -15,6 +15,11 @@ Endpoints:
   GET /medications            — list active medications
   POST /medications           — add a medication
   DELETE /medications/{id}    — remove a medication
+  GET /metrics/daily          — today's observability metrics
+  GET /metrics/weekly         — 7-day metrics for weekly digest
+  POST /notes                 — add a caregiver incident note
+  GET /notes                  — list caregiver notes
+  GET /reports/export         — exportable JSON report (30/90 day)
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ from typing import Annotated
 
 import aiosqlite
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
@@ -86,6 +91,41 @@ CREATE TABLE IF NOT EXISTS medications (
     dosage      TEXT NOT NULL,
     schedule    TEXT NOT NULL,
     notes       TEXT DEFAULT '',
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS daily_metrics (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    date_str        TEXT NOT NULL UNIQUE,
+    day_quality     INTEGER,
+    episode_count   INTEGER DEFAULT 0,
+    avg_agitation   REAL DEFAULT 0,
+    sleep_hours     REAL DEFAULT 0,
+    sleep_wake_count INTEGER DEFAULT 0,
+    speech_minutes  REAL DEFAULT 0,
+    utterance_count INTEGER DEFAULT 0,
+    hrv_rmssd       REAL,
+    mean_pause_s    REAL,
+    long_pause_ratio REAL,
+    vocabulary_ttr  REAL,
+    hr_baseline     REAL,
+    agitation_baseline REAL,
+    drift_alert     TEXT,
+    created_at      REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS caregiver_notes (
+    id          TEXT PRIMARY KEY,
+    note_type   TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notification_log (
+    id          TEXT PRIMARY KEY,
+    message     TEXT NOT NULL,
+    priority    TEXT NOT NULL,
+    suppressed  INTEGER DEFAULT 0,
     created_at  REAL NOT NULL
 );
 """
@@ -214,15 +254,18 @@ async def bear_websocket(ws: WebSocket):
 # ── SSE — Dashboard live feed ────────────────────────────────────────
 
 @app.get("/sse/events")
-async def sse_events():
+async def sse_events(request: Request):
     async def generator():
         q = event_bus.subscribe()
         try:
             while True:
-                event = await asyncio.wait_for(q.get(), timeout=30.0)
-                yield event_bus.format_sse(event)
-        except asyncio.TimeoutError:
-            yield ": keepalive\n\n"  # prevent proxy timeout
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=30.0)
+                    yield event_bus.format_sse(event)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
         except asyncio.CancelledError:
             pass
         finally:
@@ -232,6 +275,59 @@ async def sse_events():
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
     })
+
+
+_scenario_tasks: list[asyncio.Task] = []
+
+
+@app.get("/mock/scenario")
+async def trigger_mock_scenario():
+    """Trigger a scripted sundowning scenario. Cancels any already-running scenario first."""
+    for t in _scenario_tasks:
+        t.cancel()
+    _scenario_tasks.clear()
+
+    async def _run_scenario():
+        import time as _time
+        steps = [
+            (22, "low"), (35, "low"), (48, "medium"), (62, "medium"),
+            (71, "high"), (78, "high"), (82, "high"),
+            (65, "medium"), (45, "medium"), (28, "low"), (18, "low"),
+        ]
+        episode_id = str(uuid.uuid4())
+        episode_started = False
+        for score, risk in steps:
+            await asyncio.sleep(3)
+            await event_bus.publish(AgitationUpdateEvent(timestamp=_time.time(), score=score, risk=risk))
+            if risk in ("medium", "high") and not episode_started:
+                episode_started = True
+                await event_bus.publish(EpisodeStartEvent(id=episode_id, timestamp=_time.time(), agitation=score))
+            elif risk == "low" and episode_started:
+                episode_started = False
+                await event_bus.publish(EpisodeEndEvent(id=episode_id, duration=30.0, peak=82.0, outcome="calm restored after comfort recipe"))
+                await event_bus.publish(NotificationEvent(
+                    message="Margaret had a restless moment this afternoon. Ed played Jake's voice message and guided breathing, and she calmed down within a few minutes. No action needed.",
+                    priority="info",
+                    mar_trace=[
+                        {"critic": "Clinical Safety", "verdict": "APPROVE", "feedback": "Appropriate comfort intervention, no medical concern"},
+                        {"critic": "Family Tone", "verdict": "APPROVE", "feedback": "Language is warm and clear"},
+                        {"critic": "Privacy", "verdict": "APPROVE", "feedback": "No unnecessary detail shared"},
+                    ],
+                ))
+
+    task = asyncio.create_task(_run_scenario())
+    _scenario_tasks.append(task)
+    return {"status": "scenario started", "duration_s": 33}
+
+
+@app.get("/mock/cancel")
+async def cancel_mock_scenario():
+    """Cancel all running scenario tasks."""
+    for t in _scenario_tasks:
+        t.cancel()
+    count = len(_scenario_tasks)
+    _scenario_tasks.clear()
+    return {"cancelled": count}
 
 
 # ── REST — Status ─────────────────────────────────────────────────────
@@ -451,3 +547,173 @@ async def delete_medication(db: DB, med_id: str):
     async with aiosqlite.connect(DB_PATH) as db_write:
         await db_write.execute("DELETE FROM medications WHERE id = ?", (med_id,))
         await db_write.commit()
+
+
+
+# ── REST — Observability Metrics ──────────────────────────────────────
+
+
+@app.get("/metrics/daily")
+async def get_daily_metrics(db: DB):
+    import datetime
+    today = datetime.date.today().isoformat()
+    async with db.execute("SELECT * FROM daily_metrics WHERE date_str = ?", (today,)) as cur:
+        row = await cur.fetchone()
+    if row:
+        return dict(row)
+    # Compute live from observability module
+    from app.observability import (
+        hr_baseline, agitation_baseline, compute_rmssd,
+        get_speech_engagement, get_pause_stats, compute_ttr,
+        get_suppression_state,
+    )
+    eng = get_speech_engagement()
+    pauses = get_pause_stats()
+    return {
+        "date_str": today,
+        "hr_baseline": round(hr_baseline.value, 1),
+        "agitation_baseline": round(agitation_baseline.value, 1),
+        "hrv_rmssd": compute_rmssd(),
+        "speech_minutes": eng.speech_minutes,
+        "utterance_count": eng.utterance_count,
+        "mean_pause_s": pauses["mean_pause_s"],
+        "long_pause_ratio": pauses["long_pause_ratio"],
+        "vocabulary_ttr": compute_ttr(),
+        "suppression": get_suppression_state(),
+    }
+
+
+@app.get("/metrics/weekly")
+async def get_weekly_metrics(db: DB):
+    import datetime
+    today = datetime.date.today()
+    week_ago = (today - datetime.timedelta(days=7)).isoformat()
+    async with db.execute(
+        "SELECT * FROM daily_metrics WHERE date_str >= ? ORDER BY date_str ASC", (week_ago,)
+    ) as cur:
+        rows = await cur.fetchall()
+    days = [dict(r) for r in rows]
+
+    # Compute weekly aggregates
+    if days:
+        avg_quality = round(sum(d.get("day_quality") or 0 for d in days) / len(days), 1)
+        total_episodes = sum(d.get("episode_count") or 0 for d in days)
+        avg_sleep = round(sum(d.get("sleep_hours") or 0 for d in days) / len(days), 1)
+        avg_speech = round(sum(d.get("speech_minutes") or 0 for d in days) / len(days), 1)
+        ttr_values = [d["vocabulary_ttr"] for d in days if d.get("vocabulary_ttr")]
+        avg_ttr = round(sum(ttr_values) / len(ttr_values), 3) if ttr_values else None
+    else:
+        avg_quality = total_episodes = avg_sleep = avg_speech = avg_ttr = 0
+
+    return {
+        "period": f"{week_ago} to {today.isoformat()}",
+        "days_recorded": len(days),
+        "avg_day_quality": avg_quality,
+        "total_episodes": total_episodes,
+        "avg_sleep_hours": avg_sleep,
+        "avg_speech_minutes": avg_speech,
+        "avg_vocabulary_ttr": avg_ttr,
+        "daily": days,
+    }
+
+
+# ── REST — Caregiver Notes ───────────────────────────────────────────
+
+
+@app.post("/notes", status_code=201)
+async def add_note(
+    db: DB,
+    note_type: str = Query(..., description="fall|uti|hospital|upset|visitor|other"),
+    content: str = Query(...),
+):
+    note_id = str(uuid.uuid4())
+    async with aiosqlite.connect(DB_PATH) as db_write:
+        await db_write.execute(
+            "INSERT INTO caregiver_notes (id, note_type, content, created_at) VALUES (?,?,?,?)",
+            (note_id, note_type, content, time.time()),
+        )
+        await db_write.commit()
+    return {"id": note_id, "note_type": note_type, "content": content}
+
+
+@app.get("/notes")
+async def list_notes(
+    db: DB,
+    days: int = Query(default=7, description="Look-back window in days"),
+):
+    since = time.time() - days * 86400
+    async with db.execute(
+        "SELECT * FROM caregiver_notes WHERE created_at >= ? ORDER BY created_at DESC", (since,)
+    ) as cur:
+        rows = await cur.fetchall()
+    return [dict(row) for row in rows]
+
+
+# ── REST — Exportable Report ─────────────────────────────────────────
+
+
+@app.get("/reports/export")
+async def export_report(
+    db: DB,
+    days: int = Query(default=30, description="Report window: 30 or 90"),
+):
+    import datetime, json as _json
+    since = time.time() - days * 86400
+
+    # Episodes
+    async with db.execute(
+        "SELECT * FROM episodes WHERE started_at >= ? ORDER BY started_at ASC", (since,)
+    ) as cur:
+        episode_rows = await cur.fetchall()
+    episodes = [
+        {**dict(r), "mar_trace": _json.loads(r["mar_trace"]) if r["mar_trace"] else None}
+        for r in episode_rows
+    ]
+
+    # Daily metrics
+    cutoff = (datetime.date.today() - datetime.timedelta(days=days)).isoformat()
+    async with db.execute(
+        "SELECT * FROM daily_metrics WHERE date_str >= ? ORDER BY date_str ASC", (cutoff,)
+    ) as cur:
+        metric_rows = await cur.fetchall()
+    metrics = [dict(r) for r in metric_rows]
+
+    # Caregiver notes
+    async with db.execute(
+        "SELECT * FROM caregiver_notes WHERE created_at >= ? ORDER BY created_at ASC", (since,)
+    ) as cur:
+        note_rows = await cur.fetchall()
+    notes = [dict(r) for r in note_rows]
+
+    # Medications
+    async with db.execute("SELECT * FROM medications ORDER BY created_at DESC") as cur:
+        med_rows = await cur.fetchall()
+    medications = [dict(r) for r in med_rows]
+
+    # Aggregate stats
+    ep_count = len(episodes)
+    if metrics:
+        avg_quality = round(sum(m.get("day_quality") or 0 for m in metrics) / len(metrics), 1)
+        avg_sleep = round(sum(m.get("sleep_hours") or 0 for m in metrics) / len(metrics), 1)
+        ttr_vals = [m["vocabulary_ttr"] for m in metrics if m.get("vocabulary_ttr")]
+        avg_ttr = round(sum(ttr_vals) / len(ttr_vals), 3) if ttr_vals else None
+    else:
+        avg_quality = avg_sleep = avg_ttr = None
+
+    return {
+        "report_period_days": days,
+        "generated_at": time.time(),
+        "patient_name": "Margaret",
+        "summary": {
+            "total_episodes": ep_count,
+            "avg_day_quality": avg_quality,
+            "avg_sleep_hours": avg_sleep,
+            "avg_vocabulary_ttr": avg_ttr,
+            "days_with_data": len(metrics),
+            "caregiver_notes_count": len(notes),
+        },
+        "episodes": episodes,
+        "daily_metrics": metrics,
+        "caregiver_notes": notes,
+        "medications": medications,
+    }
