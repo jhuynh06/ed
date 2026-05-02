@@ -1,4 +1,4 @@
-﻿"""Ed — FastAPI entry point.
+"""Ed — FastAPI entry point.
 
 Endpoints:
   WS  /ws/bear                — ESP32 sensor stream + command dispatch
@@ -97,7 +97,8 @@ CREATE TABLE IF NOT EXISTS family_clips (
     label       TEXT NOT NULL,
     relation    TEXT NOT NULL,
     filename    TEXT NOT NULL,
-    uploaded_at REAL NOT NULL
+    uploaded_at REAL NOT NULL,
+    cartesia_voice_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS medications (
@@ -591,6 +592,41 @@ async def delete_clip(db: DB, clip_id: str):
     await db.execute("DELETE FROM family_clips WHERE id = ?", (clip_id,))
     await db.commit()
 
+
+@app.post("/family/clips/{clip_id}/clone")
+async def clone_clip_voice(db: DB, clip_id: str):
+    """Clone a voice from a family clip using Cartesia. Stores voice_id in DB."""
+    from app.tts import clone_voice
+    
+    async with db.execute(
+        "SELECT id, label, relation, filename, cartesia_voice_id FROM family_clips WHERE id = ?",
+        (clip_id,)
+    ) as cur:
+        row = await cur.fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Clip not found")
+    
+    # Already cloned?
+    if row["cartesia_voice_id"]:
+        return {"voice_id": row["cartesia_voice_id"], "already_cloned": True}
+    
+    audio_path = os.path.join(CLIPS_DIR, row["filename"])
+    if not os.path.isfile(audio_path):
+        raise HTTPException(status_code=404, detail="Audio file missing")
+    
+    # Clone via Cartesia
+    voice_name = f"{row['relation']} - {row['label']}"
+    voice_id = await clone_voice(audio_path, voice_name, f"Family voice for Ed companion")
+    
+    # Store in DB
+    await db.execute(
+        "UPDATE family_clips SET cartesia_voice_id = ? WHERE id = ?",
+        (voice_id, clip_id)
+    )
+    await db.commit()
+    
+    return {"voice_id": voice_id, "already_cloned": False}
 
 
 # ── REST — Medications ────────────────────────────────────────────────

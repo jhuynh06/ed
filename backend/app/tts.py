@@ -131,3 +131,80 @@ def clear_tts_cache() -> None:
     if CACHE_DIR.exists():
         for f in CACHE_DIR.glob("*.pcm"):
             f.unlink()
+
+
+# ── Voice Cloning ────────────────────────────────────────────────────
+
+CARTESIA_CLONE_URL = "https://api.cartesia.ai/voices/clone"
+
+
+async def clone_voice(audio_path: str | Path, name: str, description: str = "") -> str:
+    """Clone a voice from an audio file. Returns the new Cartesia voice ID.
+    
+    Args:
+        audio_path: Path to audio file (wav, mp3, etc). ~5 seconds recommended.
+        name: Name for the cloned voice in Cartesia.
+        description: Optional description.
+    
+    Returns:
+        The Cartesia voice ID for the cloned voice.
+    
+    Raises:
+        httpx.HTTPStatusError: If the API call fails.
+    """
+    audio_path = Path(audio_path)
+    if not audio_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+    
+    headers = {
+        "Authorization": f"Bearer {CARTESIA_API_KEY}",
+        "Cartesia-Version": CARTESIA_VERSION,
+    }
+    
+    async with httpx.AsyncClient(timeout=60) as client:
+        with open(audio_path, "rb") as f:
+            files = {"clip": (audio_path.name, f, "audio/wav")}
+            data = {"name": name, "language": "en"}
+            if description:
+                data["description"] = description
+            
+            resp = await client.post(
+                CARTESIA_CLONE_URL,
+                headers=headers,
+                files=files,
+                data=data,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            logger.info("Cloned voice %r -> %s", name, result["id"])
+            return result["id"]
+
+
+async def stream_tts_with_voice(text: str, voice_id: str) -> AsyncIterator[bytes]:
+    """Stream TTS using a specific voice ID (e.g., a cloned family voice).
+    
+    Unlike stream_tts(), this does NOT cache results since cloned voices
+    are used for personalized messages.
+    """
+    headers = _cartesia_headers()
+    payload = {
+        "model_id": "sonic-english",
+        "transcript": text,
+        "voice": {"mode": "id", "id": voice_id},
+        "output_format": {
+            "container": "raw",
+            "encoding": "pcm_s16le",
+            "sample_rate": SAMPLE_RATE,
+        },
+    }
+    
+    async with httpx.AsyncClient(timeout=30) as client:
+        async with client.stream(
+            "POST",
+            CARTESIA_URL,
+            headers=headers,
+            json=payload,
+        ) as resp:
+            resp.raise_for_status()
+            async for chunk in resp.aiter_bytes(CHUNK_SIZE):
+                yield chunk
