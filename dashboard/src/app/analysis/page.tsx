@@ -566,7 +566,7 @@ export default function AnalysisPage() {
                   <span className="chip warm">Story</span>
                 </div>
                 <div className="font-serif text-[12px] leading-tight text-[var(--ink)]">
-                  "Fishing with dad" — 6th time in 14 days, ↑ frequency.
+                  &quot;Fishing with dad&quot; — 6th time in 14 days, ↑ frequency.
                 </div>
               </div>
               <div className="bg-[var(--paper-3)] border border-[var(--line-soft)] rounded-lg p-2">
@@ -575,9 +575,25 @@ export default function AnalysisPage() {
                   <span className="chip alert">Disorient</span>
                 </div>
                 <div className="font-serif text-[12px] leading-tight text-[var(--ink)]">
-                  "Where am I" — first this week. Resolved 40 s.
+                  &quot;Where am I&quot; — first this week. Resolved 40 s.
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Memory Timeline */}
+          <div className="card p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="micro">Memory timeline · Recurring topics & people</span>
+              <span className="chip alert">1 flagged</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="chip alert">Fishing with dad × 6</span>
+              <span className="chip warm">Margie × 4</span>
+              <span className="chip">Sunday roast × 3</span>
+              <span className="chip">The old dog × 2</span>
+              <span className="chip">Canoe trip × 2</span>
+              <span className="chip">Frank × 1</span>
             </div>
           </div>
         </div>
