@@ -14,14 +14,8 @@ from app.sundowning import record_agitation, get_sundowning_status
 
 
 def compute_agitation_score(snap: SensorSnapshot) -> float:
-    """Weighted fusion of IMU, HR, vocal, and touch signals. Returns 0–100."""
+    """Weighted fusion of IMU, vocal, and touch signals. Returns 0–100."""
     imu_score = min(snap.imu.jerk_magnitude / 2.0, 1.0) * 100
-
-    if snap.hr.valid:
-        hr_score = min(abs(snap.hr.elevation_pct) / 30.0, 1.0) * 100
-    else:
-        hr_score = 0.0
-
     vocal_score = (snap.vocal_emotion.arousal * 100) if snap.vocal_emotion else 0.0
 
     # Touch absence (no contact for extended period) signals distress
@@ -31,17 +25,7 @@ def compute_agitation_score(snap: SensorSnapshot) -> float:
         else 0.0
     )
 
-    if snap.hr.valid:
-        weights = {"imu": 0.25, "hr": 0.25, "vocal": 0.30, "touch": 0.20}
-    else:
-        weights = {"imu": 0.30, "hr": 0.0, "vocal": 0.40, "touch": 0.30}
-
-    return (
-        weights["imu"] * imu_score
-        + weights["hr"] * hr_score
-        + weights["vocal"] * vocal_score
-        + weights["touch"] * touch_score
-    )
+    return 0.30 * imu_score + 0.40 * vocal_score + 0.30 * touch_score
 
 
 def score_to_risk(score: float) -> Literal["low", "medium", "high"]:

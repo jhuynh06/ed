@@ -71,40 +71,25 @@ function EpisodeItem({ episode }: { episode: Episode }) {
   const [expanded, setExpanded] = useState(false)
   const { start, end } = episode
   
-  // Mock MAR trace for demonstration
   const mockMARTrace: CriticVerdict[] = [
-    {
-      critic: "Clinical Safety",
-      verdict: "APPROVE",
-      feedback: "Appropriate escalation given sustained elevated agitation"
-    },
-    {
-      critic: "Family Tone", 
-      verdict: "REVISE",
-      feedback: "Language could be less clinical and more reassuring"
-    },
-    {
-      critic: "Privacy",
-      verdict: "APPROVE", 
-      feedback: "Shares necessary information without excessive detail"
-    }
+    { critic: "Clinical Safety", verdict: "APPROVE", feedback: "Appropriate escalation given sustained elevated agitation" },
+    { critic: "Family Tone", verdict: "REVISE", feedback: "Language could be less clinical and more reassuring" },
+    { critic: "Privacy", verdict: "APPROVE", feedback: "Shares necessary information without excessive detail" },
   ]
-  
-  const hasMARTrace = start.agitation > 60 // Show MAR trace for high agitation episodes
 
   return (
     <div className="card p-3">
       <div 
         className="flex items-center justify-between cursor-pointer"
         onClick={() => setExpanded(!expanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            {hasMARTrace ? (
-              expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
-            ) : (
-              <div className="w-[14px]" />
-            )}
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             <span className="font-mono text-[10.5px] text-[var(--ink-2)] tracking-wider">
               {formatTime(start.timestamp)}
             </span>
@@ -129,8 +114,27 @@ function EpisodeItem({ episode }: { episode: Episode }) {
         </div>
       </div>
       
-      {expanded && hasMARTrace && (
-        <MARTrace verdicts={mockMARTrace} />
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-[var(--line-soft)] space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="stat">
+              <div className="stat-label">Started</div>
+              <div className="stat-value text-[14px]">{formatTime(start.timestamp)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Peak agitation</div>
+              <div className="stat-value text-[14px]">{end ? Math.round(end.peak) : Math.round(start.agitation)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Duration</div>
+              <div className="stat-value text-[14px]">{end ? formatDuration(end.duration) : 'ongoing'}</div>
+            </div>
+          </div>
+          {end?.outcome && (
+            <div className="micro">Outcome: {end.outcome}</div>
+          )}
+          <MARTrace verdicts={mockMARTrace} />
+        </div>
       )}
     </div>
   )

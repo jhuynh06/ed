@@ -20,7 +20,7 @@ const tabs = [
 function OverviewPanel({ sse }: { sse: ReturnType<typeof useSSE> }) {
   return (
     <div className="flex flex-col gap-3">
-      <AgitationScoreCard agitation={sse.latestAgitation} vitals={sse.latestVitals} />
+      <AgitationScoreCard agitation={sse.latestAgitation} />
       <AgitationTimeline agitation={sse.latestAgitation} agitationHistory={sse.agitationHistory} episodes={sse.episodes} connected={sse.connected} />
 
       <div className="card p-4">

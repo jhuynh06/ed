@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from 'react'
-import { SSEEventSchema, type UseSSEReturn, type SSEEvent, type AgitationUpdate, type EpisodeStart, type EpisodeEnd, type Notification, type VitalsUpdate } from './sse-types'
+import { SSEEventSchema, type UseSSEReturn, type SSEEvent, type AgitationUpdate, type EpisodeStart, type EpisodeEnd, type Notification, type VitalsUpdate, type SensorUpdate } from './sse-types'
 
 export function useSSE(): UseSSEReturn {
   const [connected, setConnected] = useState(false)
@@ -10,6 +10,7 @@ export function useSSE(): UseSSEReturn {
   const [episodes, setEpisodes] = useState<Array<{ start: EpisodeStart; end?: EpisodeEnd }>>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [latestVitals, setLatestVitals] = useState<VitalsUpdate | null>(null)
+  const [latestSensor, setLatestSensor] = useState<SensorUpdate | null>(null)
 
   const handleEvent = useCallback((event: SSEEvent) => {
     switch (event.type) {
@@ -39,6 +40,10 @@ export function useSSE(): UseSSEReturn {
       case 'vitals_update':
         setLatestVitals(event)
         break
+
+      case 'sensor_update':
+        setLatestSensor(event)
+        break
     }
   }, [])
 
@@ -49,7 +54,7 @@ export function useSSE(): UseSSEReturn {
 
     const connect = () => {
       try {
-        eventSource = new EventSource('/api/sse')
+        eventSource = new EventSource('http://localhost:8000/sse/events')
 
         eventSource.onopen = () => {
           setConnected(true)
@@ -60,12 +65,13 @@ export function useSSE(): UseSSEReturn {
         eventSource.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data)
+            console.log('SSE raw:', data.type, data)
             const parsed = SSEEventSchema.safeParse(data)
 
             if (parsed.success) {
               handleEvent(parsed.data)
             } else {
-              console.warn('Invalid SSE event:', parsed.error)
+              console.warn('Invalid SSE event:', parsed.error.issues)
             }
           } catch (error) {
             console.error('Failed to parse SSE event:', error)
@@ -102,6 +108,7 @@ export function useSSE(): UseSSEReturn {
     agitationHistory,
     episodes,
     notifications,
-    latestVitals
+    latestVitals,
+    latestSensor,
   }
 }

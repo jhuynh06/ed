@@ -97,6 +97,8 @@ def _build_sensor_snapshot(raw: dict) -> SensorSnapshot:
     touch = TouchState(
         any_contact=touch_raw.get("any_contact", False),
         squeeze_intensity=touch_raw.get("squeeze_intensity", 0.0),
+        petting_detected=touch_raw.get("petting_detected", False),
+        active_pads=touch_raw.get("active_pads", []),
         grip_duration_s=touch_raw.get("grip_duration_s", 0.0),
     )
     return SensorSnapshot(

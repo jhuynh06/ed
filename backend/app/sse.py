@@ -11,6 +11,7 @@ from app.models import (
     EpisodeEndEvent,
     EpisodeStartEvent,
     NotificationEvent,
+    SensorUpdateEvent,
     VitalsUpdateEvent,
 )
 
@@ -19,6 +20,7 @@ SSEEvent = Union[
     EpisodeStartEvent,
     EpisodeEndEvent,
     NotificationEvent,
+    SensorUpdateEvent,
     VitalsUpdateEvent,
 ]
 

@@ -1,9 +1,13 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSSE } from '@/lib/use-sse'
+import { useBearStatus } from '@/lib/use-status'
+import type { SensorUpdate } from '@/lib/sse-types'
 import Link from 'next/link'
 import { usePatient } from '@/lib/patient-context'
 import { Mic, Play, Pause, Plus, Check, X, Send, ArrowRight, Trash2 } from 'lucide-react'
+import { getChatMessages, sendChatMessage, clearChat } from '@/lib/api'
 
 /* ─── Topbar ─────────────────────────────────────────────── */
 function Topbar({ connected }: { connected: boolean }) {
@@ -160,18 +164,37 @@ function MedicationsCard() {
 }
 
 /* ─── Body Status (Horse Plushie) ────────────────────────── */
-function BodyStatusCard() {
+function BodyStatusCard({ sensor }: { sensor: SensorUpdate | null }) {
+  const hasData = sensor !== null
+  const pads = hasData ? sensor.touch_active_pads : []
+  const isActive = (idx: number) => pads.includes(idx)
+  const activeCount = pads.length
+
+  // ESP32 touch pad mapping:
+  // 0: front_left, 1: front_right, 2: back_left, 3: back_right
+  // 4: upper_back, 5: lower_back, 6: upper_chest, 7: lower_chest
+  const padPositions = [
+    { idx: 0, label: "Front left",   top: "55%", left: "8%" },
+    { idx: 1, label: "Front right",  top: "55%", right: "8%" },
+    { idx: 2, label: "Back left",    top: "42%", left: "18%" },
+    { idx: 3, label: "Back right",   top: "42%", right: "18%" },
+    { idx: 4, label: "Upper back",   top: "35%", left: "50%", transform: "translateX(-50%)" },
+    { idx: 5, label: "Lower back",   top: "70%", left: "50%", transform: "translateX(-50%)" },
+    { idx: 6, label: "Upper chest",  top: "48%", left: "50%", transform: "translateX(-50%)" },
+    { idx: 7, label: "Lower chest",  top: "62%", left: "50%", transform: "translateX(-50%)" },
+  ]
+
   return (
     <div className="card p-4 flex flex-col gap-3 h-full">
       <div className="flex items-center justify-between">
         <div>
-          <div className="micro">Sensor presence</div>
+          <div className="micro">Touch sensors</div>
           <h2 className="font-serif text-[17px] font-normal tracking-tight leading-tight m-0 mt-0.5">Body status</h2>
         </div>
         <div className="flex items-center gap-2">
-          <span className="micro">5/6 OK</span>
-          <div className="pip on" />
-          <span className="micro">Live</span>
+          <span className="micro">{hasData ? `${activeCount}/8 active` : 'No data'}</span>
+          <div className={`pip ${hasData ? (activeCount > 0 ? 'on' : 'idle') : 'off'}`} />
+          <span className="micro">{hasData ? 'Live' : 'Waiting'}</span>
         </div>
       </div>
 
@@ -180,35 +203,34 @@ function BodyStatusCard() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/ed-plushie.png"
-            alt="Ed plushie — sensor body status"
+            alt="Ed plushie touch sensor map"
             className="w-full h-full object-contain drift"
             draggable={false}
           />
 
-          {/* Sensor indicators — 6 total, none on head */}
-          {/* Body: two vertically aligned on chest/belly */}
-          <div className="absolute top-[50%] left-1/2 -translate-x-1/2">
-            <div className="pip on" title="Mic: OK" />
-          </div>
-          <div className="absolute top-[64%] left-1/2 -translate-x-1/2">
-            <div className="pip on" title="IMU: OK" />
-          </div>
-          {/* Hands: on each hoof/hand tip */}
-          <div className="absolute top-[55%] left-[8%]">
-            <div className="pip on" title="Touch L: OK" />
-          </div>
-          <div className="absolute top-[55%] right-[8%]">
-            <div className="pip on" title="Touch R: OK" />
-          </div>
-          {/* Feet: centered on each black hoof */}
-          <div className="absolute bottom-[10%] left-[24%] -translate-x-1/2">
-            <div className="pip off" title="HR L: No signal" />
-          </div>
-          <div className="absolute bottom-[10%] right-[24%] translate-x-1/2">
-            <div className="pip on" title="HR R: OK" />
-          </div>
+          {padPositions.map((pad) => (
+            <div
+              key={pad.idx}
+              className="absolute"
+              style={{ top: pad.top, left: pad.left, right: pad.right, transform: pad.transform }}
+            >
+              <div
+                className={`pip ${isActive(pad.idx) ? 'on' : 'off'}`}
+                title={`${pad.label}: ${isActive(pad.idx) ? 'Touched' : 'Idle'}`}
+              />
+            </div>
+          ))}
         </div>
       </div>
+
+      {hasData && (
+        <div className="flex gap-4 text-[12px] flex-wrap">
+          <div><span className="micro">Squeeze</span> <span className="font-mono">{sensor.touch_squeeze.toFixed(2)}</span></div>
+          <div><span className="micro">Grip</span> <span className="font-mono">{sensor.touch_grip_s.toFixed(0)}s</span></div>
+          {sensor.touch_petting && <span className="chip warm">Petting</span>}
+          {sensor.imu_hug && <span className="chip calm">Hug</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -328,17 +350,48 @@ function VoiceTransmitCard() {
 }
 
 /* ─── Chat Log ───────────────────────────────────────────── */
+interface ChatMsg {
+  sender: string
+  content: string
+  msg_type: string
+  created_at: number
+}
+
 function ChatLog() {
   const [message, setMessage] = useState('')
+  const [messages, setMessages] = useState<ChatMsg[]>([])
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const { active } = usePatient()
+  const pid = active?.id ?? 'p1'
 
-  const messages = [
-    { from: 'ed', time: '9:42', text: 'Good morning, Ed. Did you sleep well?' },
-    { from: 'user', time: '9:42', type: 'audio' as const, duration: '0:14' },
-    { from: 'ed', time: '9:43', text: "Margie called yesterday — would you like to hear what she said?" },
-    { from: 'user', time: '9:43', text: 'Yes, please. Did she mention the grandkids?' },
-    { from: 'ed', time: '9:44', text: "Lily started piano lessons. The dog still won't eat the new food." },
-    { from: 'user', time: '9:45', text: "Ha — that dog. Reminds me of the old setter we had on the lake." },
-  ]
+  const load = useCallback(() => {
+    getChatMessages(pid).then((rows) => setMessages(rows as unknown as ChatMsg[])).catch(() => {})
+  }, [pid])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => { const id = setInterval(load, 5000); return () => clearInterval(id) }, [load])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length])
+
+  const handleSend = async () => {
+    const text = message.trim()
+    if (!text || sending) return
+    setSending(true)
+    setMessage('')
+    setMessages(prev => [...prev, { sender: 'user', content: text, msg_type: 'text', created_at: Date.now() / 1000 }])
+    try {
+      await sendChatMessage(pid, 'user', text)
+      load()
+    } catch { /* keep optimistic msg */ }
+    setSending(false)
+  }
+
+  const handleClear = async () => {
+    await clearChat(pid)
+    setMessages([])
+  }
+
+  const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   return (
     <div className="card flex flex-col h-full min-h-0">
@@ -348,85 +401,50 @@ function ChatLog() {
           <img src="/message.png" alt="Chat" width={18} height={18} draggable={false} />
           <div>
             <span className="font-serif text-[15px] font-medium">Chat log</span>
-            <span className="micro ml-2">This morning</span>
+            <span className="micro ml-2">{messages.length} messages</span>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <button className="btn btn-icon btn-ghost" aria-label="Record voice">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/mic.png" alt="Record" width={18} height={18} draggable={false} />
-          </button>
-          <button className="btn btn-icon btn-ghost" aria-label="Delete conversation">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/trash.png" alt="Delete" width={18} height={18} draggable={false} />
-          </button>
-        </div>
+        <button className="btn btn-icon btn-ghost" aria-label="Delete conversation" onClick={handleClear}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/trash.png" alt="Delete" width={18} height={18} draggable={false} />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-        <div className="text-center">
-          <span className="micro">Today · 9:42 AM</span>
-        </div>
-
         {messages.map((msg, i) => (
           <div key={i}>
             <div className="micro mb-1">
-              {msg.from === 'ed' ? 'Ed' : 'You'} · {msg.time}
+              {msg.sender === 'theodore' ? 'Theodore' : 'You'} · {fmtTime(msg.created_at)}
             </div>
-            {msg.type === 'audio' ? (
-              <div className={`inline-flex items-center gap-3 px-4 py-3 rounded-2xl max-w-[85%] ${
-                msg.from === 'user'
-                  ? 'bg-[var(--ink)] text-[var(--paper)] ml-auto'
-                  : 'bg-[var(--paper-3)]'
-              }`} style={msg.from === 'user' ? { marginLeft: 'auto', display: 'flex' } : {}}>
-                <button className="w-7 h-7 rounded-full bg-[var(--paper)] text-[var(--ink)] flex items-center justify-center flex-none">
-                  <Play size={12} />
-                </button>
-                <div className="flex items-center gap-0.5 h-5">
-                  {Array.from({ length: 16 }, (_, j) => (
-                    <div
-                      key={j}
-                      className="w-[2px] rounded-full"
-                      style={{
-                        height: `${4 + ((j * 7 + 5) % 13)}px`,
-                        background: msg.from === 'user' ? 'var(--paper)' : 'var(--ink-3)',
-                        opacity: 0.7,
-                      }}
-                    />
-                  ))}
-                </div>
-                <span className="font-mono text-[11px] opacity-80">{msg.duration}</span>
-              </div>
-            ) : (
-              <div
-                className={`inline-block px-4 py-3 rounded-2xl max-w-[85%] font-serif text-[14.5px] leading-relaxed ${
-                  msg.from === 'user'
-                    ? 'bg-[var(--ink)] text-[var(--paper)] rounded-br-md'
-                    : 'bg-[var(--paper-3)] text-[var(--ink)] rounded-bl-md'
-                }`}
-                style={msg.from === 'user' ? { marginLeft: 'auto', display: 'block', textAlign: 'left', float: 'right', clear: 'both' } : { clear: 'both' }}
-              >
-                {msg.text}
-              </div>
-            )}
+            <div
+              className={`inline-block px-4 py-3 rounded-2xl max-w-[85%] font-serif text-[14.5px] leading-relaxed ${
+                msg.sender === 'user'
+                  ? 'bg-[var(--ink)] text-[var(--paper)] rounded-br-md'
+                  : 'bg-[var(--paper-3)] text-[var(--ink)] rounded-bl-md'
+              }`}
+              style={msg.sender === 'user' ? { marginLeft: 'auto', display: 'block', textAlign: 'left', float: 'right', clear: 'both' } : { clear: 'both' }}
+            >
+              {msg.content}
+            </div>
             <div className="clear-both" />
           </div>
         ))}
+        <div ref={bottomRef} />
       </div>
 
       <div className="p-3 pt-2 border-t border-[var(--line-soft)]">
-        <div className="flex items-center gap-2">
+        <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); handleSend() }}>
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Send a message to Ed..."
+            placeholder="Send a message to Theodore..."
             className="flex-1 bg-[var(--paper-3)] border border-[var(--line)] rounded-full px-4 py-2.5 text-[13px] placeholder:text-[var(--ink-4)]"
           />
-          <button className="btn btn-primary gap-1.5 py-2.5">
+          <button type="submit" disabled={sending || !message.trim()} className="btn btn-primary gap-1.5 py-2.5">
             <Send size={13} /> Send
           </button>
-        </div>
+        </form>
       </div>
     </div>
   )
@@ -434,7 +452,9 @@ function ChatLog() {
 
 /* ─── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
-  const connected = true
+  const sse = useSSE()
+  const bearConnected = useBearStatus()
+  const connected = sse.connected && bearConnected
 
   return (
     <div className="relative z-10 h-screen max-w-[1560px] mx-auto px-3.5 py-2.5 grid grid-rows-[auto_1fr] gap-2.5">
@@ -460,7 +480,7 @@ export default function Dashboard() {
         {/* Center top: Body status + Tunnel in */}
         <div className="flex flex-col gap-2.5 min-h-0" style={{ gridArea: 'mid-top' }}>
           <div className="flex-1 min-h-0">
-            <BodyStatusCard />
+            <BodyStatusCard sensor={sse.latestSensor} />
           </div>
           <VoiceTransmitCard />
         </div>

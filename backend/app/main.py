@@ -52,6 +52,7 @@ from app.models import (
     EpisodeEndEvent,
     EpisodeStartEvent,
     NotificationEvent,
+    SensorUpdateEvent,
     VitalsUpdateEvent,
 )
 from app.sse import event_bus
@@ -233,11 +234,22 @@ async def bear_websocket(ws: WebSocket):
                     timestamp=time.time(), score=score, risk=risk,
                 ))
 
-                # Publish vitals if HR valid
+                # Publish raw sensor snapshot for dashboard body-status
                 snap = result.get("sensor_snapshot")
-                if snap and snap.hr.valid:
-                    await event_bus.publish(VitalsUpdateEvent(
-                        bpm=snap.hr.bpm, spo2=snap.hr.spo2, baseline_bpm=snap.hr.baseline_bpm,
+                if snap:
+                    await event_bus.publish(SensorUpdateEvent(
+                        imu_jerk=snap.imu.jerk_magnitude,
+                        imu_stillness_s=snap.imu.stillness_duration_s,
+                        imu_hug=snap.imu.hug_detected,
+                        imu_rocking=snap.imu.rocking_detected,
+                        imu_fall=snap.imu.fall_detected,
+                        touch_any=snap.touch.any_contact,
+                        touch_squeeze=snap.touch.squeeze_intensity,
+                        touch_petting=snap.touch.petting_detected,
+                        touch_grip_s=snap.touch.grip_duration_s,
+                        touch_active_pads=snap.touch.active_pads,
+                        hr_valid=snap.hr.valid,
+                        hr_bpm=snap.hr.bpm,
                     ))
 
                 # Episode lifecycle
@@ -451,6 +463,19 @@ async def trigger_mock_scenario():
         for score, risk in steps:
             await asyncio.sleep(3)
             await event_bus.publish(AgitationUpdateEvent(timestamp=_time.time(), score=score, risk=risk))
+
+            # Synthetic sensor data correlated with agitation
+            jerk = score / 100 * 1.5
+            grip_s = max(0, (score - 20) * 2)
+            pads = [0, 1] if score < 40 else [0, 1, 2, 3] if score < 70 else [0, 1, 2, 3, 4, 6]
+            await event_bus.publish(SensorUpdateEvent(
+                imu_jerk=jerk, imu_stillness_s=max(0, 300 - score * 3),
+                imu_hug=score > 50, imu_rocking=score > 60, imu_fall=False,
+                touch_any=True, touch_squeeze=min(score / 100, 1.0),
+                touch_petting=score < 35, touch_grip_s=grip_s,
+                touch_active_pads=pads,
+            ))
+
             if risk in ("medium", "high") and not episode_started:
                 episode_started = True
                 await event_bus.publish(EpisodeStartEvent(id=episode_id, timestamp=_time.time(), agitation=score))

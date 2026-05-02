@@ -18,7 +18,7 @@ import websockets
 
 # ── Configuration ─────────────────────────────────────────────────────
 
-COM_PORT = "COM6"           # Change to your ESP32 port
+COM_PORT = "COM11"          # Change to your ESP32 port
 BAUD_RATE = 115200
 WS_URL = "ws://localhost:8000/ws/bear"
 

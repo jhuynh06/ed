@@ -1,14 +1,13 @@
 "use client"
 
-import type { AgitationUpdate, VitalsUpdate } from '@/lib/sse-types'
+import type { AgitationUpdate } from '@/lib/sse-types'
 
 interface AgitationScoreCardProps {
   agitation: AgitationUpdate | null
-  vitals: VitalsUpdate | null
   sundowning?: boolean
 }
 
-export function AgitationScoreCard({ agitation, vitals, sundowning = false }: AgitationScoreCardProps) {
+export function AgitationScoreCard({ agitation, sundowning = false }: AgitationScoreCardProps) {
   const score = agitation?.score ?? 0
   const risk = agitation?.risk ?? 'low'
   

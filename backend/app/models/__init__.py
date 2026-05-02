@@ -163,6 +163,23 @@ class NotificationEvent(BaseModel):
     mar_trace: list[dict] | None = None
 
 
+class SensorUpdateEvent(BaseModel):
+    type: Literal["sensor_update"] = "sensor_update"
+    timestamp: float = Field(default_factory=time.time)
+    imu_jerk: float = 0.0
+    imu_stillness_s: float = 0.0
+    imu_hug: bool = False
+    imu_rocking: bool = False
+    imu_fall: bool = False
+    touch_any: bool = False
+    touch_squeeze: float = 0.0
+    touch_petting: bool = False
+    touch_grip_s: float = 0.0
+    touch_active_pads: list[int] = []
+    hr_valid: bool = False
+    hr_bpm: int = 0
+
+
 class VitalsUpdateEvent(BaseModel):
     type: Literal["vitals_update"] = "vitals_update"
     bpm: int

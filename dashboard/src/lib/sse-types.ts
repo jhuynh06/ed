@@ -50,12 +50,30 @@ export const VitalsUpdateSchema = z.object({
   baseline_bpm: z.number(),
 });
 
+export const SensorUpdateSchema = z.object({
+  type: z.literal("sensor_update"),
+  timestamp: z.number(),
+  imu_jerk: z.number(),
+  imu_stillness_s: z.number(),
+  imu_hug: z.boolean(),
+  imu_rocking: z.boolean(),
+  imu_fall: z.boolean(),
+  touch_any: z.boolean(),
+  touch_squeeze: z.number(),
+  touch_petting: z.boolean(),
+  touch_grip_s: z.number(),
+  touch_active_pads: z.array(z.number()),
+  hr_valid: z.boolean(),
+  hr_bpm: z.number(),
+});
+
 export const SSEEventSchema = z.discriminatedUnion("type", [
   AgitationUpdateSchema,
   EpisodeStartSchema,
   EpisodeEndSchema,
   NotificationSchema,
   VitalsUpdateSchema,
+  SensorUpdateSchema,
 ]);
 
 // ── TypeScript types (inferred from Zod) ─────────────────────────────
@@ -66,10 +84,26 @@ export type EpisodeEnd = z.infer<typeof EpisodeEndSchema>;
 export type CriticVerdict = z.infer<typeof CriticVerdictSchema>;
 export type Notification = z.infer<typeof NotificationSchema>;
 export type VitalsUpdate = z.infer<typeof VitalsUpdateSchema>;
+export type SensorUpdate = z.infer<typeof SensorUpdateSchema>;
 export type SSEEvent = z.infer<typeof SSEEventSchema>;
 
 export type RiskLevel = "low" | "medium" | "high";
 export type NotificationPriority = "info" | "warning" | "urgent";
+
+// ── Backend REST types ────────────────────────────────────────────────
+
+export interface BackendStatus {
+  score: number;
+  risk: string;
+  bear_connected: boolean;
+  updated_at: number;
+}
+
+export interface SundowningStatus {
+  active: boolean;
+  confidence: number;
+  peak_hour: number | null;
+}
 
 // ── SSE hook return type ──────────────────────────────────────────────
 
@@ -80,4 +114,5 @@ export interface UseSSEReturn {
   episodes: Array<{ start: EpisodeStart; end?: EpisodeEnd }>;
   notifications: Notification[];
   latestVitals: VitalsUpdate | null;
+  latestSensor: SensorUpdate | null;
 }
