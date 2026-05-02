@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440" />
+<title>Theodore — Caregiver Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,300..700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  /* ───── Tokens ─────────────────────────────────────────────── */
+  :root {
+    /* warm domestic palette — the page sits in morning light */
+    --paper:        oklch(0.985 0.007 80);   /* warm off-white */
+    --paper-2:      oklch(0.965 0.010 78);   /* card surface */
+    --paper-3:      oklch(0.945 0.013 76);   /* sunken */
+    --line:         oklch(0.895 0.012 75);
+    --line-soft:    oklch(0.925 0.010 75);
+
+    --ink:          oklch(0.22 0.012 60);    /* primary text — warm near-black */
+    --ink-2:        oklch(0.42 0.012 60);    /* secondary */
+    --ink-3:        oklch(0.58 0.010 60);    /* muted */
+    --ink-4:        oklch(0.72 0.008 60);    /* faint */
+
+    /* accents — share chroma 0.09, lightness 0.62 */
+    --sage:         oklch(0.62 0.09 145);    /* "okay / healthy" */
+    --sage-soft:    oklch(0.92 0.04 145);
+    --amber:        oklch(0.72 0.13 70);     /* warmth / engagement */
+    --amber-soft:   oklch(0.94 0.05 78);
+    --rose:         oklch(0.62 0.13 25);     /* attention */
+    --rose-soft:    oklch(0.93 0.04 25);
+    --sky:          oklch(0.62 0.09 235);    /* neutral mood */
+    --sky-soft:     oklch(0.93 0.03 235);
+
+    /* mood ring — applied to body via gradient overlay */
+    --mood-warm:    oklch(0.96 0.04 75);
+    --mood-neutral: oklch(0.965 0.012 80);
+    --mood-cool:    oklch(0.96 0.025 230);
+
+    --shadow-soft:  0 1px 0 oklch(0.97 0.01 75 / 0.7) inset, 0 1px 2px oklch(0.40 0.02 60 / 0.04), 0 8px 24px -12px oklch(0.40 0.02 60 / 0.10);
+    --shadow-card:  0 1px 0 oklch(1 0 0 / 0.8) inset, 0 1px 2px oklch(0.40 0.02 60 / 0.05), 0 12px 32px -16px oklch(0.40 0.02 60 / 0.12);
+
+    --radius:       14px;
+    --radius-sm:    10px;
+    --radius-lg:    20px;
+
+    --serif: "Source Serif 4", Cambria, Georgia, serif;
+    --sans:  "IBM Plex Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+    --mono:  "IBM Plex Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+    height: 100vh;
+    overflow: hidden;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  #app { height: 100vh; }
+
+  /* mood ring gradient overlay — a soft tint that bleeds in from the edges */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, var(--mood-tint, var(--mood-warm)) 0%, transparent 60%),
+      radial-gradient(80% 60% at 100% 110%, var(--mood-tint-2, var(--mood-warm)) 0%, transparent 55%);
+    transition: opacity 1.2s ease;
+  }
+
+  #app { position: relative; z-index: 1; }
+
+  /* card primitives */
+  .card {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+  }
+  .card-flat {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .sunken {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+  .display { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* tiny dotted status light */
+  .pip {
+    --c: var(--ink-4);
+    width: 10px; height: 10px; border-radius: 999px;
+    background: radial-gradient(circle at 35% 35%, color-mix(in oklch, white 50%, var(--c)) 0%, var(--c) 70%);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--c) 12%, transparent), 0 0 8px color-mix(in oklch, var(--c) 35%, transparent);
+    flex: none;
+  }
+  .pip.on  { --c: var(--sage); }
+  .pip.off { --c: var(--rose); }
+  .pip.idle{ --c: var(--ink-4); }
+
+  /* dotted ring (a slightly different aesthetic for the "small dotted light") */
+  .pip-dotted {
+    width: 12px; height: 12px; border-radius: 999px;
+    border: 1.5px dotted var(--c, var(--ink-4));
+    position: relative;
+    flex: none;
+  }
+  .pip-dotted::after {
+    content: ""; position: absolute; inset: 3px;
+    border-radius: 999px; background: var(--c, var(--ink-4));
+  }
+  .pip-dotted.on  { --c: var(--sage); }
+  .pip-dotted.off { --c: var(--rose); }
+
+  /* buttons */
+  .btn {
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    border: 1px solid var(--line); background: var(--paper-2);
+    color: var(--ink);
+    border-radius: 999px; padding: 8px 14px;
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .btn:hover { background: var(--paper); border-color: var(--ink-4); }
+  .btn-primary {
+    background: var(--ink); color: var(--paper);
+    border-color: var(--ink);
+  }
+  .btn-primary:hover { background: oklch(0.30 0.012 60); border-color: oklch(0.30 0.012 60); }
+  .btn-icon {
+    width: 32px; height: 32px; padding: 0; justify-content: center;
+  }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--paper-3); color: var(--ink); }
+
+  /* layout — locked to viewport, no scrolling */
+  .shell {
+    height: 100vh;
+    max-width: 1560px;
+    margin: 0 auto;
+    padding: 10px 14px 12px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 10px;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2px;
+  }
+  .grid-app {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.15fr) minmax(280px, 1fr);
+    grid-template-rows: minmax(420px, 1.2fr) minmax(0, 0.85fr);
+    grid-template-areas:
+      "left-top mid-top chat"
+      "bottom   bottom  chat";
+    gap: 10px;
+    min-height: 0;
+  }
+  .area-left-top { grid-area: left-top; }
+  .area-mid-top  { grid-area: mid-top; }
+  .area-bottom   { grid-area: bottom; }
+  .area-chat     { grid-area: chat; }
+  .col {
+    display: flex; flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .col > .card { min-height: 0; }
+
+  /* Inputs */
+  input, textarea, select {
+    font-family: inherit; color: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; border: 2px solid var(--paper); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
+
+  /* gentle pulse for "live" indicators */
+  @keyframes breathe {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.04); }
+  }
+  .breathe { animation: breathe 3.2s ease-in-out infinite; }
+
+  @keyframes drift {
+    0%, 100% { transform: translateY(0px) rotate(-0.5deg); }
+    50%      { transform: translateY(-2px) rotate(0.5deg); }
+  }
+  .drift { animation: drift 6s ease-in-out infinite; transform-origin: bottom center; }
+
+  /* a small "i" tag */
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+    color: var(--ink-2);
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 8px;
+    text-transform: uppercase;
+  }
+
+  /* divider with label */
+  .rule {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--ink-3);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .rule::before, .rule::after {
+    content: ""; flex: 1; height: 1px;
+    background: linear-gradient(to right, transparent, var(--line) 40%, var(--line) 60%, transparent);
+  }
+
+  /* link button styled */
+  .analysis-btn {
+    background: linear-gradient(135deg, var(--ink) 0%, oklch(0.32 0.02 60) 100%);
+    color: var(--paper);
+    border-radius: 999px;
+    padding: 12px 22px;
+    font-size: 13.5px; font-weight: 500;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 10px;
+    border: 1px solid oklch(0.18 0.012 60);
+    box-shadow: 0 1px 0 oklch(1 0 0 / 0.06) inset, 0 8px 24px -10px oklch(0.20 0.012 60 / 0.45);
+    transition: all 0.18s ease;
+  }
+  .analysis-btn:hover { transform: translateY(-1px); box-shadow: 0 1px 0 oklch(1 0 0 / 0.06) inset, 0 12px 28px -10px oklch(0.20 0.012 60 / 0.55); }
+
+  /* hover row in dropdowns */
+  .menu-row {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+    padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .menu-row:hover { background: var(--paper-3); }
+  .menu-row + .menu-row { border-top: 1px solid var(--line-soft); }
+
+  /* very small caps label */
+  .micro { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="parts/Icons.jsx"></script>
+  <script type="text/babel" src="parts/BodyDashboard.jsx"></script>
+  <script type="text/babel" src="parts/Garden.jsx"></script>
+  <script type="text/babel" src="parts/MemoryTimeline.jsx"></script>
+  <script type="text/babel" src="parts/Prompts.jsx"></script>
+  <script type="text/babel" src="parts/Voices.jsx"></script>
+  <script type="text/babel" src="parts/Medications.jsx"></script>
+  <script type="text/babel" src="parts/Chat.jsx"></script>
+  <script type="text/babel" src="parts/App.jsx"></script>
+</body>
+</html>

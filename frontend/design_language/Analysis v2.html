@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440" />
+<title>Theodore — Clinical analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,300..700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --paper:        oklch(0.985 0.007 80);
+    --paper-2:      oklch(0.965 0.010 78);
+    --paper-3:      oklch(0.945 0.013 76);
+    --paper-4:      oklch(0.925 0.013 75);
+    --line:         oklch(0.895 0.012 75);
+    --line-soft:    oklch(0.925 0.010 75);
+    --ink:          oklch(0.22 0.012 60);
+    --ink-2:        oklch(0.42 0.012 60);
+    --ink-3:        oklch(0.58 0.010 60);
+    --ink-4:        oklch(0.72 0.008 60);
+    --sage:         oklch(0.62 0.09 145);
+    --sage-soft:    oklch(0.92 0.04 145);
+    --amber:        oklch(0.72 0.13 70);
+    --amber-soft:   oklch(0.94 0.05 78);
+    --rose:         oklch(0.62 0.13 25);
+    --rose-soft:    oklch(0.93 0.04 25);
+    --sky:          oklch(0.62 0.09 235);
+    --sky-soft:     oklch(0.93 0.03 235);
+    --plum:         oklch(0.55 0.10 320);
+    --plum-soft:    oklch(0.94 0.03 320);
+    --shadow-card:  0 1px 0 oklch(1 0 0 / 0.8) inset, 0 1px 2px oklch(0.40 0.02 60 / 0.05), 0 12px 32px -16px oklch(0.40 0.02 60 / 0.12);
+    --radius:       12px;
+    --radius-sm:    9px;
+    --serif: "Source Serif 4", Cambria, Georgia, serif;
+    --sans:  "IBM Plex Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+    --mono:  "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, oklch(0.96 0.04 75) 0%, transparent 60%),
+      radial-gradient(80% 60% at 100% 110%, oklch(0.95 0.05 50) 0%, transparent 55%);
+  }
+
+  /* full-viewport shell, no scrolling */
+  .shell {
+    position: relative;
+    z-index: 1;
+    height: 100vh;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 12px 18px 14px;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  /* tokens */
+  .micro { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+  .num   { font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .display { font-family: var(--serif); letter-spacing: -0.015em; }
+
+  /* topbar */
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .mark {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: var(--ink); color: var(--paper);
+    display: grid; place-items: center;
+    font-family: var(--serif); font-size: 15px; letter-spacing: -0.02em;
+  }
+  .brand h1 { font-family: var(--serif); font-size: 22px; font-weight: 400; letter-spacing: -0.02em; margin: 0; line-height: 1.1; }
+  .brand .session { color: var(--ink-3); font-weight: 300; }
+
+  .breadcrumb { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; color: var(--ink-3); text-transform: uppercase; }
+  .breadcrumb a { color: var(--ink-2); text-decoration: none; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-2); }
+  .breadcrumb a:hover { color: var(--ink); border-color: var(--ink-4); }
+
+  /* tabs */
+  .tabbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    width: fit-content;
+  }
+  .tab {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 7px 14px 8px;
+    border-radius: 9px;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--ink-2);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-selected="true"] {
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 0 1px 0 oklch(1 0 0 / 0.9) inset, 0 1px 2px oklch(0.4 0.02 60 / 0.10);
+  }
+  .tab .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--ink-4); }
+  .tab[aria-selected="true"] .dot { background: var(--sage); }
+  .tab .tnum { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-left: 2px; letter-spacing: 0.04em; }
+
+  /* main 2-col layout: heatmap pinned left, tab content right */
+  .main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr);
+    gap: 12px;
+    min-height: 0;
+  }
+  .col { display: grid; gap: 12px; min-height: 0; min-width: 0; }
+  .col.left { grid-template-rows: 1fr auto; }
+  .col.right { grid-template-rows: minmax(0, 1fr); }
+
+  /* card */
+  .card {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 12px 14px;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .card-eyebrow { display: flex; align-items: center; gap: 7px; }
+  h2.h-section {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 17px; letter-spacing: -0.015em;
+    margin: 1px 0 0;
+    line-height: 1.15;
+  }
+  .card-sub {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em;
+    color: var(--ink-2); background: var(--paper-3);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 8px; text-transform: uppercase;
+  }
+  .pip { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+  .pip-sage  { background: var(--sage); }
+  .pip-amber { background: var(--amber); }
+  .pip-rose  { background: var(--rose); }
+  .pip-sky   { background: var(--sky); }
+  .pip-plum  { background: var(--plum); }
+
+  /* heatmap */
+  .heatmap-card { flex: 1; }
+  .hm-grid {
+    display: grid;
+    grid-template-columns: 86px 1fr;
+    column-gap: 10px;
+    row-gap: 8px;
+    align-items: center;
+  }
+  .hm-row-label {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .hm-row-label small {
+    display: block;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-3); letter-spacing: 0.04em;
+    text-transform: none; margin-top: 1px;
+  }
+  .heatdots {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 3px;
+  }
+  .heatdot {
+    aspect-ratio: 1 / 1;
+    border-radius: 3px;
+    background: var(--paper-4);
+    transition: transform 0.12s ease;
+    position: relative;
+  }
+  .heatdot:hover { transform: scale(1.18); z-index: 2; }
+  .hm-axis {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 2px 0;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-3); letter-spacing: 0.04em;
+  }
+  .hm-axis span:nth-child(odd) { color: var(--ink-2); }
+
+  .hm-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .hm-stat {
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .hm-stat-label { font-family: var(--mono); font-size: 9px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; }
+  .hm-stat-value { font-family: var(--serif); font-size: 18px; letter-spacing: -0.02em; line-height: 1; }
+  .hm-stat-trend { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin-top: 2px; }
+
+  .legend {
+    display: flex; gap: 10px; align-items: center;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: 0.06em; color: var(--ink-3); text-transform: uppercase;
+  }
+  .legend > div { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* events strip below heatmap */
+  .events-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .event {
+    background: var(--paper-3);
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+    padding: 7px 9px;
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 0;
+  }
+  .event-head { display: flex; align-items: center; gap: 6px; }
+  .event-time { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); letter-spacing: 0.04em; }
+  .event-text {
+    font-family: var(--serif); font-size: 12px; line-height: 1.3; color: var(--ink);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .chip {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em;
+    background: var(--paper-3); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px;
+    text-transform: uppercase; color: var(--ink-2);
+  }
+  .chip.warm { background: var(--amber-soft); border-color: color-mix(in oklch, var(--amber) 25%, var(--line)); color: oklch(0.45 0.07 60); }
+  .chip.cool { background: var(--sky-soft); border-color: color-mix(in oklch, var(--sky) 25%, var(--line)); color: oklch(0.40 0.06 235); }
+  .chip.calm { background: var(--sage-soft); border-color: color-mix(in oklch, var(--sage) 25%, var(--line)); color: oklch(0.42 0.06 145); }
+  .chip.alert { background: var(--rose-soft); border-color: color-mix(in oklch, var(--rose) 25%, var(--line)); color: oklch(0.45 0.09 25); }
+
+  /* tab panels — they share the same right column */
+  .panel { display: none; min-height: 0; min-width: 0; height: 100%; flex-direction: column; gap: 10px; }
+  .panel[data-active="true"] { display: flex; }
+
+  /* metrics grid (used in panels) */
+  .metric-grid {
+    display: grid;
+    gap: 8px;
+  }
+  .metric-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .metric-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .metric-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .stat {
+    background: var(--paper-3);
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+    padding: 7px 10px;
+    min-width: 0;
+  }
+  .stat-label { font-family: var(--mono); font-size: 9px; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase; }
+  .stat-value { font-family: var(--serif); font-size: 19px; letter-spacing: -0.02em; line-height: 1.05; margin-top: 1px; }
+  .stat-unit { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); margin-left: 3px; letter-spacing: 0.04em; }
+  .stat-trend { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin-top: 3px; letter-spacing: 0.04em; }
+
+  /* meters */
+  .meter { display: grid; grid-template-columns: 100px 1fr 56px; gap: 10px; align-items: center; padding: 4px 0; }
+  .meter + .meter { border-top: 1px solid var(--line-soft); }
+  .meter-label { font-size: 11.5px; color: var(--ink); }
+  .meter-sub { font-family: var(--mono); font-size: 8.5px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
+  .meter-num { text-align: right; font-family: var(--mono); font-size: 10.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .bar { height: 5px; background: var(--paper-4); border-radius: 999px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 999px; }
+  .bar.warn > i  { background: linear-gradient(90deg, var(--sage), var(--amber)); }
+  .bar.alert > i { background: linear-gradient(90deg, var(--amber), var(--rose)); }
+  .bar.calm > i  { background: var(--sage); }
+  .bar.cool > i  { background: var(--sky); }
+  .bar.bipolar { background: linear-gradient(90deg, var(--rose-soft), var(--paper-3) 50%, var(--sage-soft)); position: relative; }
+  .bar.bipolar > i { background: var(--ink); width: 3px; height: 13px; border-radius: 2px; transform: translateY(-4px); position: absolute; top: 0; }
+
+  /* gauge */
+  .gauge { position: relative; width: 110px; height: 110px; flex: none; }
+  .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge .center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .gauge .center .big { font-family: var(--serif); font-size: 30px; letter-spacing: -0.02em; line-height: 1; }
+
+  /* CDR cells */
+  .cdr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .cdr-cell {
+    background: var(--paper-3); border: 1px solid var(--line-soft);
+    border-radius: 9px; padding: 8px 9px;
+    display: flex; flex-direction: column; gap: 3px;
+    position: relative; overflow: hidden;
+  }
+  .cdr-cell::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--c, var(--ink-4));
+  }
+  .cdr-name { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+  .cdr-score { font-family: var(--serif); font-size: 22px; letter-spacing: -0.02em; line-height: 1; }
+  .cdr-trend { font-family: var(--mono); font-size: 9px; color: var(--ink-2); }
+
+  /* sparkline */
+  .spark { width: 100%; height: 28px; display: block; }
+  .spark.tall { height: 36px; }
+
+  /* tag row */
+  .tag-row { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  /* valence pad */
+  .vpad {
+    position: relative; aspect-ratio: 8/5;
+    background: var(--paper-3);
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+  }
+  .vpad .axis-x { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line-soft); }
+  .vpad .axis-y { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line-soft); }
+  .vpad .lab { position: absolute; font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .vpad .pt { position: absolute; border-radius: 999px; transform: translate(-50%, -50%); }
+
+  @keyframes breathe { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .breathe { animation: breathe 3.2s ease-in-out infinite; }
+
+  /* tighter section card variant for panels */
+  .card.tight { padding: 10px 12px; gap: 8px; }
+  .card.flex-1 { flex: 1; }
+  .card.split-row { flex-direction: row; align-items: center; gap: 16px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Topbar ────────────────────────────────────────── -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">T</div>
+      <div>
+        <div class="micro">Clinical analysis · Wed, May 1 · 14d window</div>
+        <h1>Theodore <span class="session">· session #312</span></h1>
+      </div>
+    </div>
+    <div class="breadcrumb">
+      <a href="Theodore.html">← Caregiver dashboard</a>
+    </div>
+  </div>
+
+  <!-- ── Tabs ──────────────────────────────────────────── -->
+  <div class="tabbar" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="overview"><span class="dot"></span> Overview <span class="tnum">01</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="voice">   <span class="dot"></span> Voice & language <span class="tnum">02</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="body">    <span class="dot"></span> Body & touch <span class="tnum">03</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="cdr">     <span class="dot"></span> CDR & trends <span class="tnum">04</span></button>
+  </div>
+
+  <!-- ── Main 2-col body ───────────────────────────────── -->
+  <div class="main">
+
+    <!-- LEFT: heatmap (always visible) + events strip -->
+    <div class="col left">
+      <div class="card heatmap-card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow"><span class="pip pip-sky"></span><span class="micro">Last 24 hours · 1h bins</span></div>
+            <h2 class="h-section">Engagement heatmap</h2>
+            <div class="card-sub">Touch · speech · motion · hug — fused engagement signal</div>
+          </div>
+          <div class="legend">
+            <div><span class="pip pip-sage"></span> high</div>
+            <div><span class="pip pip-amber"></span> mid</div>
+            <div><span class="pip" style="background: var(--paper-4); border:1px solid var(--line);"></span> none</div>
+          </div>
+        </div>
+
+        <div class="hm-grid">
+          <div class="hm-row-label">Touch <small>contact</small></div>
+          <div class="heatdots" id="hm-touch"></div>
+          <div class="hm-row-label">Speech <small>voicing</small></div>
+          <div class="heatdots" id="hm-speech"></div>
+          <div class="hm-row-label">Motion <small>imu rms</small></div>
+          <div class="heatdots" id="hm-motion"></div>
+          <div class="hm-row-label">Hug <small>imu hug</small></div>
+          <div class="heatdots" id="hm-hug"></div>
+          <div></div>
+          <div class="hm-axis">
+            <span>00</span><span>03</span><span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span>
+          </div>
+        </div>
+
+        <div class="hm-summary">
+          <div class="hm-stat">
+            <div class="hm-stat-label">Active hours</div>
+            <div class="hm-stat-value">11.5<span style="font-family:var(--mono); font-size:11px; color:var(--ink-3); margin-left:3px;">h</span></div>
+            <div class="hm-stat-trend" style="color: var(--sage);">↑ +1.2h vs. 14d</div>
+          </div>
+          <div class="hm-stat">
+            <div class="hm-stat-label">Peak window</div>
+            <div class="hm-stat-value">06:30<span style="font-family:var(--mono); font-size:11px; color:var(--ink-3); margin-left:3px;">–08:00</span></div>
+            <div class="hm-stat-trend">morning routine</div>
+          </div>
+          <div class="hm-stat">
+            <div class="hm-stat-label">Quiet stretch</div>
+            <div class="hm-stat-value">22:00<span style="font-family:var(--mono); font-size:11px; color:var(--ink-3); margin-left:3px;">–05:30</span></div>
+            <div class="hm-stat-trend">restful sleep</div>
+          </div>
+          <div class="hm-stat">
+            <div class="hm-stat-label">Hug events</div>
+            <div class="hm-stat-value">4<span style="font-family:var(--mono); font-size:11px; color:var(--ink-3); margin-left:3px;">today</span></div>
+            <div class="hm-stat-trend" style="color: var(--sage);">↑ longest 4m 12s</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Events strip -->
+      <div class="card tight">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow"><span class="pip pip-amber"></span><span class="micro">Notable today</span></div>
+          </div>
+          <span class="micro">6 events</span>
+        </div>
+        <div class="events-strip">
+          <div class="event">
+            <div class="event-head"><span class="event-time">06:42</span><span class="chip calm">Hug</span></div>
+            <div class="event-text">Sustained hug · 4m 12s — longest this week.</div>
+          </div>
+          <div class="event">
+            <div class="event-head"><span class="event-time">07:18</span><span class="chip warm">Story</span></div>
+            <div class="event-text">"Fishing with dad" — 6th time in 14 days, ↑ frequency.</div>
+          </div>
+          <div class="event">
+            <div class="event-head"><span class="event-time">08:31</span><span class="chip alert">Disorient</span></div>
+            <div class="event-text">"Where am I" — first this week. Resolved 40 s.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: tab content -->
+    <div class="col right">
+
+      <!-- ╭── Panel 1 · OVERVIEW ──────────────────────────╮ -->
+      <div class="panel" data-tab-panel="overview" data-active="true">
+
+        <div class="card split-row">
+          <div class="gauge">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="var(--line)" stroke-width="9" />
+              <circle cx="50" cy="50" r="42" fill="none"
+                stroke="url(#agg-grad)" stroke-width="9"
+                stroke-dasharray="263.9" stroke-dashoffset="195"
+                stroke-linecap="round" />
+              <defs>
+                <linearGradient id="agg-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="oklch(0.62 0.09 145)" />
+                  <stop offset="60%" stop-color="oklch(0.72 0.13 70)" />
+                  <stop offset="100%" stop-color="oklch(0.62 0.13 25)" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="center"><div>
+              <div class="big">26</div>
+              <div class="micro" style="margin-top:3px;">/ 100</div>
+            </div></div>
+          </div>
+          <div style="flex:1; min-width: 0;">
+            <div class="card-eyebrow"><span class="pip pip-sage breathe"></span><span class="micro">Composite · IMU + acoustic + touch</span></div>
+            <h2 class="h-section" style="margin-top:2px;">Agitation score · calm window</h2>
+            <div class="card-sub" style="margin-bottom:6px;">Reweighted (no HR available) · running 5-min mean.</div>
+            <div class="meter">
+              <div><div class="meter-label">Stillness</div><div class="meter-sub">imu.stillness</div></div>
+              <div class="bar calm"><i style="width:68%;"></i></div>
+              <div class="meter-num">4m 32s</div>
+            </div>
+            <div class="meter">
+              <div><div class="meter-label">Hug</div><div class="meter-sub">imu.hug</div></div>
+              <div class="bar calm"><i style="width:88%;"></i></div>
+              <div class="meter-num">held</div>
+            </div>
+            <div class="meter">
+              <div><div class="meter-label">Jerk</div><div class="meter-sub">imu.jerk</div></div>
+              <div class="bar warn"><i style="width:22%;"></i></div>
+              <div class="meter-num">0.18 g/s</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card flex-1">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-plum"></span><span class="micro">Fused emotion · audio + text</span></div>
+              <h2 class="h-section">Affect right now</h2>
+              <div class="card-sub">Valence × arousal — last 30 minutes</div>
+            </div>
+            <span class="pill"><span class="pip pip-amber"></span> Warm · agreeable</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; align-items: stretch;">
+            <div class="vpad" style="min-height: 150px;">
+              <div class="lab" style="left:8px; top:8px;">High arousal</div>
+              <div class="lab" style="left:8px; bottom:8px;">Low arousal</div>
+              <div class="lab" style="right:8px; top:50%; transform: translateY(-50%);">Positive</div>
+              <div class="lab" style="left:8px; top:50%;">Negative</div>
+              <div class="axis-x"></div>
+              <div class="axis-y"></div>
+              <div class="pt" style="left:42%; top:62%; width:7px; height:7px; background:var(--ink-4); opacity:0.5;"></div>
+              <div class="pt" style="left:48%; top:58%; width:8px; height:8px; background:var(--ink-4); opacity:0.65;"></div>
+              <div class="pt" style="left:55%; top:54%; width:9px; height:9px; background:var(--ink-3); opacity:0.85;"></div>
+              <div class="pt" style="left:62%; top:50%; width:11px; height:11px; background:var(--amber); box-shadow: 0 0 0 4px color-mix(in oklch, var(--amber) 22%, transparent);"></div>
+            </div>
+            <div class="metric-grid cols-2" style="align-content: start;">
+              <div class="stat">
+                <div class="stat-label">Audio valence</div>
+                <div class="stat-value">+0.34</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Audio arousal</div>
+                <div class="stat-value">0.41</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Text sentiment</div>
+                <div class="stat-value">+0.52</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Disagreement</div>
+                <div class="stat-value">0.08</div>
+                <div class="stat-trend" style="color:var(--sage);">aligned</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ╭── Panel 2 · VOICE & LANGUAGE ──────────────────╮ -->
+      <div class="panel" data-tab-panel="voice">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-sky"></span><span class="micro">Acoustic features · mic</span></div>
+              <h2 class="h-section">Voice signature</h2>
+              <div class="card-sub">F0 · perturbation · rate · 14d baseline</div>
+            </div>
+            <span class="pill">12 min · 1,420 words</span>
+          </div>
+
+          <div class="metric-grid cols-3">
+            <div class="stat">
+              <div class="stat-label">F0 mean</div>
+              <div class="stat-value">118<span class="stat-unit">Hz</span></div>
+              <div class="stat-trend">baseline 122 · −3%</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">F0 std</div>
+              <div class="stat-value">14.3<span class="stat-unit">Hz</span></div>
+              <div class="stat-trend" style="color:var(--sage);">expressive</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Jitter</div>
+              <div class="stat-value">0.71<span class="stat-unit">%</span></div>
+              <div class="stat-trend">in range</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Shimmer</div>
+              <div class="stat-value">3.4<span class="stat-unit">%</span></div>
+              <div class="stat-trend" style="color:var(--amber);">↑ elevated</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">HNR</div>
+              <div class="stat-value">19.2<span class="stat-unit">dB</span></div>
+              <div class="stat-trend" style="color:var(--sage);">clean</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Speaking rate</div>
+              <div class="stat-value">132<span class="stat-unit">wpm</span></div>
+              <div class="stat-trend">baseline 138</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <div class="micro">Pause rate · per minute · 14d</div>
+              <div class="num" style="font-size:10.5px; color:var(--ink-2);">today 6.4/min</div>
+            </div>
+            <svg class="spark tall" viewBox="0 0 300 36" preserveAspectRatio="none">
+              <polyline points="0,18 22,16 44,20 66,15 88,18 110,12 132,16 154,14 176,17 198,13 220,15 242,12 264,16 286,11 300,12"
+                fill="none" stroke="var(--sky)" stroke-width="1.6" stroke-linejoin="round" />
+              <line x1="0" y1="18" x2="300" y2="18" stroke="var(--line)" stroke-dasharray="2 4" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="card flex-1">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-sage"></span><span class="micro">NLP features</span></div>
+              <h2 class="h-section">Language & cognition</h2>
+              <div class="card-sub">Vocabulary diversity · fluency · coherence</div>
+            </div>
+            <span class="pill"><span class="pip pip-sage"></span> +6% vs. 14d</span>
+          </div>
+
+          <div class="metric-grid cols-4">
+            <div class="stat">
+              <div class="stat-label">Type-token</div>
+              <div class="stat-value">0.61</div>
+              <div class="stat-trend" style="color:var(--sage);">↑ rich</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Filler rate</div>
+              <div class="stat-value">2.4<span class="stat-unit">%</span></div>
+              <div class="stat-trend">um · uh</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Mean utt.</div>
+              <div class="stat-value">11.3<span class="stat-unit">w</span></div>
+              <div class="stat-trend">base 9.4</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Coherence</div>
+              <div class="stat-value">0.78</div>
+              <div class="stat-trend" style="color:var(--sage);">on thread</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="micro" style="margin-bottom:5px;">Topic clusters · this session</div>
+            <div class="tag-row">
+              <span class="chip warm">Fishing × 6</span>
+              <span class="chip warm">Margie × 4</span>
+              <span class="chip">Canoe trip × 3</span>
+              <span class="chip">Sunday roast × 2</span>
+              <span class="chip cool">Weather × 2</span>
+              <span class="chip">Frank × 1</span>
+              <span class="chip alert">"Where am I" × 1</span>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; padding-top:6px; border-top:1px solid var(--line-soft);">
+            <div>
+              <div class="micro">Sentiment polarity</div>
+              <div class="bar bipolar" style="margin-top:6px; height:13px;">
+                <i style="left:64%;"></i>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                <span class="meter-sub">neg</span>
+                <span class="num" style="font-size:10.5px;">+0.28</span>
+                <span class="meter-sub">pos</span>
+              </div>
+            </div>
+            <div>
+              <div class="micro">Disfluencies / 100w</div>
+              <div class="bar warn" style="margin-top:6px; height:13px;"><i style="width:18%;"></i></div>
+              <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                <span class="meter-sub">low</span>
+                <span class="num" style="font-size:10.5px;">3.6</span>
+                <span class="meter-sub">high</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ╭── Panel 3 · BODY & TOUCH ──────────────────────╮ -->
+      <div class="panel" data-tab-panel="body">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-rose"></span><span class="micro">Touch sensor</span></div>
+              <h2 class="h-section">Holding & grip</h2>
+            </div>
+            <span class="pill"><span class="pip pip-sage"></span> Engaged</span>
+          </div>
+
+          <div class="metric-grid cols-3">
+            <div class="stat">
+              <div class="stat-label">Squeeze</div>
+              <div class="stat-value">0.42<span class="stat-unit">/1</span></div>
+              <div class="stat-trend" style="color:var(--sage);">↓ softened</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Grip duration</div>
+              <div class="stat-value">4:12<span class="stat-unit">m</span></div>
+              <div class="stat-trend" style="color:var(--sage);">↑ longest wk</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Contact %</div>
+              <div class="stat-value">68<span class="stat-unit">%</span></div>
+              <div class="stat-trend">of session</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="micro" style="margin-bottom:5px;">touch.any_contact · last 30 min</div>
+            <svg class="spark tall" viewBox="0 0 300 36" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="touch-fill-2" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="var(--sage)" stop-opacity="0.45" />
+                  <stop offset="100%" stop-color="var(--sage)" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0,30 L8,30 L8,12 L42,12 L42,30 L60,30 L60,16 L120,16 L120,30 L140,30 L140,8 L220,8 L220,30 L260,30 L260,18 L290,18 L290,30 L300,30 Z"
+                fill="url(#touch-fill-2)" />
+              <path d="M0,30 L8,30 L8,12 L42,12 L42,30 L60,30 L60,16 L120,16 L120,30 L140,30 L140,8 L220,8 L220,30 L260,30 L260,18 L290,18 L290,30 L300,30"
+                fill="none" stroke="var(--sage)" stroke-width="1.5" stroke-linejoin="round" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="card flex-1">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-amber"></span><span class="micro">IMU · accelerometer + gyro</span></div>
+              <h2 class="h-section">Body motion</h2>
+              <div class="card-sub">Stillness · jerk · rocking · hug — last 30 min</div>
+            </div>
+          </div>
+
+          <div class="meter">
+            <div><div class="meter-label">Stillness</div><div class="meter-sub">imu.stillness</div></div>
+            <div class="bar calm"><i style="width:68%;"></i></div>
+            <div class="meter-num">4m 32s</div>
+          </div>
+          <div class="meter">
+            <div><div class="meter-label">Jerk magnitude</div><div class="meter-sub">imu.jerk</div></div>
+            <div class="bar warn"><i style="width:22%;"></i></div>
+            <div class="meter-num">0.18 g/s</div>
+          </div>
+          <div class="meter">
+            <div><div class="meter-label">Rocking</div><div class="meter-sub">imu.rock @ 0.6 Hz</div></div>
+            <div class="bar warn"><i style="width:14%;"></i></div>
+            <div class="meter-num">0.6 Hz</div>
+          </div>
+          <div class="meter">
+            <div><div class="meter-label">Hug detected</div><div class="meter-sub">imu.hug</div></div>
+            <div class="bar calm"><i style="width:88%;"></i></div>
+            <div class="meter-num">held</div>
+          </div>
+          <div class="meter">
+            <div><div class="meter-label">Postural drift</div><div class="meter-sub">imu.tilt</div></div>
+            <div class="bar cool"><i style="width:32%;"></i></div>
+            <div class="meter-num">8°</div>
+          </div>
+          <div class="meter">
+            <div><div class="meter-label">Activity index</div><div class="meter-sub">imu.rms</div></div>
+            <div class="bar warn"><i style="width:36%;"></i></div>
+            <div class="meter-num">0.22 g</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ╭── Panel 4 · CDR & TRENDS ──────────────────────╮ -->
+      <div class="panel" data-tab-panel="cdr">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-amber"></span><span class="micro">Clinical Dementia Rating · model-inferred</span></div>
+              <h2 class="h-section">Domain scores</h2>
+              <div class="card-sub">0 none &nbsp;·&nbsp; 0.5 questionable &nbsp;·&nbsp; 1 mild &nbsp;·&nbsp; 2 moderate &nbsp;·&nbsp; 3 severe</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="micro" style="font-size:9.5px;">Sum of boxes</div>
+              <div class="display" style="font-size:26px; line-height:1; margin-top:2px;">2.0</div>
+              <div class="meter-sub" style="margin-top:2px;">↓ from 2.5</div>
+            </div>
+          </div>
+
+          <div class="cdr-grid">
+            <div class="cdr-cell" style="--c: var(--sky);">
+              <div class="cdr-name">Communication</div>
+              <div class="cdr-score">0.5</div>
+              <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <polyline points="0,8 12,8 24,10 36,9 48,12 60,11 72,12 84,12 96,11" fill="none" stroke="var(--sky)" stroke-width="1.5" />
+              </svg>
+              <div class="cdr-trend">stable · expressive</div>
+            </div>
+            <div class="cdr-cell" style="--c: var(--amber);">
+              <div class="cdr-name">Orientation</div>
+              <div class="cdr-score">1.0</div>
+              <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <polyline points="0,14 12,12 24,14 36,16 48,15 60,17 72,16 84,18 96,18" fill="none" stroke="var(--amber)" stroke-width="1.5" />
+              </svg>
+              <div class="cdr-trend">↘ slow drift</div>
+            </div>
+            <div class="cdr-cell" style="--c: var(--rose);">
+              <div class="cdr-name">Memory</div>
+              <div class="cdr-score">1.0</div>
+              <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <polyline points="0,12 12,14 24,13 36,16 48,15 60,17 72,16 84,18 96,17" fill="none" stroke="var(--rose)" stroke-width="1.5" />
+              </svg>
+              <div class="cdr-trend">recurring stories ↑</div>
+            </div>
+            <div class="cdr-cell" style="--c: var(--sage);">
+              <div class="cdr-name">Judgment</div>
+              <div class="cdr-score">0.5</div>
+              <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <polyline points="0,11 12,10 24,12 36,11 48,12 60,11 72,12 84,11 96,12" fill="none" stroke="var(--sage)" stroke-width="1.5" />
+              </svg>
+              <div class="cdr-trend">good problem-solving</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card flex-1">
+          <div class="card-head">
+            <div>
+              <div class="card-eyebrow"><span class="pip pip-plum"></span><span class="micro">14-day trends</span></div>
+              <h2 class="h-section">What's changing</h2>
+              <div class="card-sub">Daily aggregates over the last two weeks</div>
+            </div>
+          </div>
+
+          <!-- multi-line trend chart -->
+          <svg viewBox="0 0 320 120" preserveAspectRatio="none" style="width:100%; height: auto; max-height: 160px; flex: 1; min-height: 0;">
+            <!-- gridlines -->
+            <line x1="0" y1="20"  x2="320" y2="20"  stroke="var(--line-soft)" stroke-dasharray="2 4" />
+            <line x1="0" y1="60"  x2="320" y2="60"  stroke="var(--line-soft)" stroke-dasharray="2 4" />
+            <line x1="0" y1="100" x2="320" y2="100" stroke="var(--line-soft)" stroke-dasharray="2 4" />
+
+            <!-- engagement (sage) -->
+            <polyline points="0,80 22,72 44,76 66,68 88,70 110,62 132,64 154,58 176,60 198,52 220,55 242,48 264,50 286,42 308,46 320,44"
+              fill="none" stroke="var(--sage)" stroke-width="1.8" stroke-linejoin="round" />
+
+            <!-- agitation (rose) -->
+            <polyline points="0,40 22,42 44,38 66,46 88,42 110,50 132,46 154,52 176,48 198,56 220,54 242,60 264,58 286,62 308,60 320,64"
+              fill="none" stroke="var(--rose)" stroke-width="1.8" stroke-linejoin="round" />
+
+            <!-- cognition (sky) -->
+            <polyline points="0,60 22,58 44,62 66,60 88,64 110,60 132,62 154,58 176,60 198,56 220,58 242,55 264,56 286,52 308,54 320,52"
+              fill="none" stroke="var(--sky)" stroke-width="1.8" stroke-linejoin="round" />
+          </svg>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+            <div class="stat">
+              <div class="stat-label" style="display:flex; align-items:center; gap:6px;"><span class="pip pip-sage"></span> Engagement</div>
+              <div class="stat-value">+18<span class="stat-unit">%</span></div>
+              <div class="stat-trend" style="color:var(--sage);">trending up</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label" style="display:flex; align-items:center; gap:6px;"><span class="pip pip-rose"></span> Agitation</div>
+              <div class="stat-value">−12<span class="stat-unit">%</span></div>
+              <div class="stat-trend" style="color:var(--sage);">calmer week</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label" style="display:flex; align-items:center; gap:6px;"><span class="pip pip-sky"></span> Cognition</div>
+              <div class="stat-value">+4<span class="stat-unit">%</span></div>
+              <div class="stat-trend">stable</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── Tabs ─────────────────────────────────────────────
+  const tabs = document.querySelectorAll(".tab");
+  const panels = document.querySelectorAll("[data-tab-panel]");
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => {
+      const target = t.dataset.tab;
+      tabs.forEach((x) => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+      panels.forEach((p) => p.setAttribute("data-active", p.dataset.tabPanel === target ? "true" : "false"));
+    });
+  });
+
+  // ─── Heatmap ──────────────────────────────────────────
+  function fillHeatmap(id, seed, weights) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = "";
+    let s = seed;
+    for (let h = 0; h < 24; h++) {
+      s = (s * 9301 + 49297) % 233280;
+      const noise = s / 233280;
+      const w = weights[h] ?? 0.2;
+      const v = Math.max(0, Math.min(1, w * 0.78 + noise * 0.32));
+      const dot = document.createElement("div");
+      dot.className = "heatdot";
+      let bg = "var(--paper-4)";
+      if (v > 0.65)      bg = "var(--sage)";
+      else if (v > 0.42) bg = "var(--amber)";
+      else if (v > 0.20) bg = "var(--paper-3)";
+      dot.style.background = bg;
+      dot.style.opacity = (0.42 + v * 0.58).toFixed(2);
+      dot.title = `${String(h).padStart(2,"0")}:00 — ${(v*100).toFixed(0)}%`;
+      el.appendChild(dot);
+    }
+  }
+  const wTouch  = [0.05,0.05,0.05,0.05,0.10,0.20,0.70,0.85,0.70,0.50,0.60,0.40,0.60,0.50,0.40,0.30,0.40,0.50,0.60,0.70,0.50,0.30,0.15,0.05];
+  const wSpeech = [0.00,0.00,0.00,0.00,0.00,0.10,0.50,0.80,0.70,0.40,0.55,0.30,0.65,0.40,0.50,0.40,0.45,0.60,0.70,0.55,0.40,0.20,0.05,0.00];
+  const wMotion = [0.05,0.00,0.00,0.00,0.05,0.20,0.55,0.45,0.35,0.30,0.40,0.50,0.60,0.50,0.45,0.35,0.40,0.50,0.55,0.45,0.35,0.25,0.10,0.05];
+  const wHug    = [0.00,0.00,0.00,0.00,0.00,0.00,0.85,0.60,0.30,0.10,0.20,0.00,0.30,0.00,0.00,0.00,0.00,0.40,0.30,0.20,0.00,0.00,0.00,0.00];
+
+  fillHeatmap("hm-touch",  11, wTouch);
+  fillHeatmap("hm-speech", 73, wSpeech);
+  fillHeatmap("hm-motion", 41, wMotion);
+  fillHeatmap("hm-hug",    97, wHug);
+</script>
+</body>
+</html>

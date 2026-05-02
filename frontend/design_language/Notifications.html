@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Theodore — Notification system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,300..700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        oklch(0.985 0.007 80);
+    --paper-2:      oklch(0.965 0.010 78);
+    --paper-3:      oklch(0.945 0.013 76);
+    --paper-4:      oklch(0.925 0.013 75);
+    --line:         oklch(0.895 0.012 75);
+    --line-soft:    oklch(0.925 0.010 75);
+    --ink:          oklch(0.22 0.012 60);
+    --ink-2:        oklch(0.42 0.012 60);
+    --ink-3:        oklch(0.58 0.010 60);
+    --ink-4:        oklch(0.72 0.008 60);
+    --sage:         oklch(0.62 0.09 145);
+    --sage-soft:    oklch(0.93 0.045 145);
+    --amber:        oklch(0.72 0.13 70);
+    --amber-soft:   oklch(0.94 0.05 78);
+    --rose:         oklch(0.58 0.16 25);
+    --rose-soft:    oklch(0.93 0.04 25);
+    --sky:          oklch(0.62 0.09 235);
+    --sky-soft:     oklch(0.93 0.03 235);
+    --plum:         oklch(0.55 0.10 320);
+    --plum-soft:    oklch(0.94 0.03 320);
+    --shadow-card:  0 1px 0 oklch(1 0 0 / 0.8) inset, 0 1px 2px oklch(0.40 0.02 60 / 0.05), 0 12px 32px -16px oklch(0.40 0.02 60 / 0.12);
+    --shadow-pop:   0 1px 0 oklch(1 0 0 / 0.9) inset, 0 6px 14px -6px oklch(0.30 0.02 60 / 0.18), 0 24px 60px -22px oklch(0.30 0.02 60 / 0.25);
+    --serif: "Source Serif 4", Cambria, Georgia, serif;
+    --sans:  "IBM Plex Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+    --mono:  "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+    min-height: 100vh;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, oklch(0.96 0.04 75) 0%, transparent 60%),
+      radial-gradient(80% 60% at 100% 110%, oklch(0.95 0.05 50) 0%, transparent 55%);
+  }
+
+  .shell { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 28px 32px 64px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand .mark { width: 32px; height: 32px; border-radius: 10px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-family: var(--serif); font-size: 16px; letter-spacing: -0.02em; }
+  .brand h1 { font-family: var(--serif); font-size: 26px; font-weight: 400; letter-spacing: -0.02em; margin: 0; line-height: 1.1; }
+  .brand .session { color: var(--ink-3); font-weight: 300; }
+  .breadcrumb a { color: var(--ink-2); text-decoration: none; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-2); font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .breadcrumb a:hover { color: var(--ink); border-color: var(--ink-4); }
+
+  .micro { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+  .num { font-variant-numeric: tabular-nums; font-family: var(--mono); }
+
+  /* section group */
+  .section { margin-bottom: 44px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; gap: 16px; }
+  .section-head h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -0.02em; margin: 0; line-height: 1.15; }
+  .section-head p { font-family: var(--serif); color: var(--ink-3); margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; max-width: 480px; }
+  .section-head .label { display: flex; align-items: center; gap: 8px; }
+  .section-head .pip { width: 8px; height: 8px; border-radius: 999px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* base notification (caregiver-style, on-screen) */
+  .notif {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-pop);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .notif::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent, var(--ink-4));
+  }
+  .notif-head {
+    display: flex; align-items: center; gap: 10px;
+    padding-left: 4px;
+  }
+  .notif-icon {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: var(--accent-soft, var(--paper-3));
+    color: var(--accent, var(--ink-2));
+    display: grid; place-items: center;
+    flex: none;
+  }
+  .notif-app {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  .notif-time {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3); letter-spacing: 0.04em;
+  }
+  .notif-priority {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 5px;
+    border: 1px solid color-mix(in oklch, var(--accent) 25%, var(--line));
+  }
+  .notif-body { padding-left: 4px; }
+  .notif-title { font-family: var(--serif); font-size: 16px; line-height: 1.3; letter-spacing: -0.01em; color: var(--ink); margin: 0 0 4px; }
+  .notif-desc  { font-family: var(--serif); font-size: 13.5px; line-height: 1.5; color: var(--ink-2); margin: 0; }
+  .notif-actions { display: flex; gap: 6px; padding-left: 4px; flex-wrap: wrap; }
+  .btn {
+    appearance: none; border: 1px solid var(--line); background: var(--paper);
+    color: var(--ink); border-radius: 8px;
+    padding: 6px 11px;
+    font-family: var(--sans); font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn:hover { border-color: var(--ink-4); }
+  .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .btn.primary:hover { background: oklch(0.32 0.012 60); }
+  .btn.ghost { background: transparent; }
+  .btn.alert { background: var(--rose); color: var(--paper); border-color: var(--rose); }
+
+  /* accent variants */
+  .notif.urgent  { --accent: var(--rose);  --accent-soft: var(--rose-soft); }
+  .notif.warn    { --accent: var(--amber); --accent-soft: var(--amber-soft); }
+  .notif.calm    { --accent: var(--sage);  --accent-soft: var(--sage-soft); }
+  .notif.cool    { --accent: var(--sky);   --accent-soft: var(--sky-soft); }
+  .notif.plum    { --accent: var(--plum);  --accent-soft: var(--plum-soft); }
+  .notif.neutral { --accent: var(--ink-3); --accent-soft: var(--paper-3); }
+
+  /* urgent pulse */
+  .notif.urgent .notif-icon { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--rose) 35%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in oklch, var(--rose) 0%, transparent); }
+  }
+
+  /* phone mockup */
+  .phone-row {
+    display: grid;
+    grid-template-columns: 296px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .phone {
+    width: 296px;
+    border-radius: 38px;
+    background: oklch(0.18 0.008 60);
+    padding: 8px;
+    box-shadow: 0 30px 60px -30px oklch(0.20 0.02 60 / 0.5), 0 1px 0 oklch(1 0 0 / 0.05) inset;
+    position: relative;
+  }
+  .phone-screen {
+    background: linear-gradient(160deg, oklch(0.32 0.05 260), oklch(0.22 0.04 280));
+    border-radius: 32px;
+    overflow: hidden;
+    height: 580px;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .phone-statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 22px 0;
+    color: oklch(0.95 0.01 80);
+    font-family: var(--sans); font-size: 14px; font-weight: 600;
+  }
+  .phone-statusbar .icons { display: flex; gap: 5px; align-items: center; opacity: 0.92; }
+  .phone-time {
+    text-align: center;
+    color: oklch(0.97 0.01 80);
+    font-family: var(--sans);
+    margin-top: 18px;
+  }
+  .phone-time .clock { font-size: 64px; font-weight: 200; letter-spacing: -0.04em; line-height: 1; }
+  .phone-time .date  { font-size: 14px; font-weight: 500; letter-spacing: 0.01em; opacity: 0.92; margin-top: 4px; }
+
+  .phone-stack {
+    margin-top: 16px;
+    padding: 0 10px 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    flex: 1;
+  }
+  .lock-notif {
+    background: oklch(0.95 0.01 80 / 0.18);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid oklch(1 0 0 / 0.12);
+    border-radius: 16px;
+    padding: 11px 12px;
+    color: oklch(0.97 0.01 80);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .lock-notif.first { background: oklch(0.95 0.01 80 / 0.26); }
+  .lock-notif-head { display: flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; opacity: 0.85; text-transform: uppercase; }
+  .lock-notif-head .app-icon { width: 18px; height: 18px; border-radius: 5px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-family: var(--serif); font-size: 10px; }
+  .lock-notif-head .time { margin-left: auto; font-family: var(--sans); font-size: 11px; opacity: 0.72; text-transform: none; letter-spacing: 0; }
+  .lock-notif-title { font-family: var(--serif); font-size: 14px; font-weight: 500; line-height: 1.25; }
+  .lock-notif-desc  { font-family: var(--sans); font-size: 12.5px; line-height: 1.35; opacity: 0.86; }
+  .lock-notif.urgent { background: linear-gradient(180deg, color-mix(in oklch, var(--rose) 70%, transparent), color-mix(in oklch, var(--rose) 50%, transparent)); border-color: color-mix(in oklch, var(--rose) 70%, transparent); }
+
+  .phone-bar { width: 110px; height: 4px; background: oklch(1 0 0 / 0.45); border-radius: 999px; margin: auto auto 8px; }
+
+  /* patient-facing voice bubble (Theodore speaks) */
+  .speak-bubble {
+    background: linear-gradient(165deg, oklch(0.97 0.025 75), oklch(0.94 0.04 60));
+    border: 1px solid oklch(0.88 0.04 60);
+    border-radius: 22px 22px 22px 6px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow-card);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 100%;
+  }
+  .speak-bubble .from { display: flex; align-items: center; gap: 9px; }
+  .speak-bubble .avatar { width: 28px; height: 28px; border-radius: 999px; background: oklch(0.55 0.1 50); display: grid; place-items: center; color: var(--paper); font-family: var(--serif); font-size: 13px; }
+  .speak-bubble .from-name { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+  .speak-bubble .quote { font-family: var(--serif); font-size: 17px; line-height: 1.45; color: var(--ink); margin: 0; letter-spacing: -0.005em; }
+  .speak-bubble .wave { display: flex; align-items: center; gap: 3px; height: 18px; padding-top: 4px; }
+  .speak-bubble .wave i { display: block; width: 2px; background: var(--ink-3); border-radius: 999px; opacity: 0.55; }
+  .speak-bubble .ctx { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--ink-3); text-transform: uppercase; padding-top: 6px; border-top: 1px dashed var(--line); }
+
+  /* digest card */
+  .digest-card {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .digest-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .digest-title { font-family: var(--serif); font-size: 18px; letter-spacing: -0.015em; margin: 2px 0 0; line-height: 1.2; }
+  .digest-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+  .digest-stat {
+    background: var(--paper-3); border: 1px solid var(--line-soft);
+    border-radius: 9px; padding: 8px 10px;
+  }
+  .digest-stat-label { font-family: var(--mono); font-size: 9px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; }
+  .digest-stat-value { font-family: var(--serif); font-size: 22px; letter-spacing: -0.02em; line-height: 1; margin-top: 2px; }
+  .digest-stat-unit  { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-left: 3px; }
+  .digest-stat-trend { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin-top: 4px; }
+
+  .arc-row { display: grid; grid-template-columns: 80px 1fr; gap: 12px; align-items: center; }
+  .arc-row + .arc-row { margin-top: 4px; }
+  .arc-label { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+  .mood-arc {
+    height: 38px; width: 100%;
+    background:
+      linear-gradient(90deg, var(--paper-3) 0%, var(--paper-3) 100%);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .mood-arc svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .mood-axis {
+    height: 12px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono); font-size: 9px; color: var(--ink-3); letter-spacing: 0.06em;
+    padding: 0 4px;
+  }
+
+  /* compliance row */
+  .comp-list { display: flex; flex-direction: column; gap: 6px; }
+  .comp-row {
+    display: grid; grid-template-columns: 60px 1fr 80px;
+    gap: 10px; align-items: center;
+    padding: 7px 10px;
+    background: var(--paper-3);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+  }
+  .comp-time { font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); }
+  .comp-name { font-family: var(--serif); font-size: 13.5px; }
+  .comp-tag {
+    text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+  }
+  .comp-tag.ack { background: var(--sage-soft); color: oklch(0.40 0.07 145); border-color: color-mix(in oklch, var(--sage) 30%, var(--line)); }
+  .comp-tag.miss { background: var(--rose-soft); color: oklch(0.45 0.10 25); border-color: color-mix(in oklch, var(--rose) 30%, var(--line)); }
+  .comp-tag.conf { background: var(--amber-soft); color: oklch(0.45 0.08 60); border-color: color-mix(in oklch, var(--amber) 30%, var(--line)); }
+
+  /* weekly trend */
+  .trend-card { padding: 20px 22px; }
+  .trend-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; }
+  .trend-head .badge { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); padding: 3px 9px; background: var(--paper-3); border: 1px solid var(--line); border-radius: 999px; }
+
+  .baseline-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+    margin-top: 10px;
+  }
+  .baseline-cell {
+    background: var(--paper-3); border: 1px solid var(--line-soft);
+    border-radius: 10px; padding: 10px 12px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .bl-name { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+  .bl-row { display: flex; align-items: baseline; gap: 8px; }
+  .bl-now { font-family: var(--serif); font-size: 22px; letter-spacing: -0.02em; line-height: 1; }
+  .bl-base { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+  .bl-delta {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+    padding: 2px 7px; border-radius: 5px;
+  }
+  .bl-delta.up   { background: var(--sage-soft); color: oklch(0.40 0.07 145); }
+  .bl-delta.down { background: var(--amber-soft); color: oklch(0.45 0.08 60); }
+  .bl-delta.flat { background: var(--paper-4); color: var(--ink-3); }
+  .bl-spark { width: 100%; height: 22px; }
+
+  /* clinical anomaly flags */
+  .flag-list { display: flex; flex-direction: column; gap: 8px; }
+  .flag-row {
+    display: grid; grid-template-columns: 64px 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 10px 12px 10px 15px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent, var(--amber));
+    border-radius: 10px;
+  }
+  .flag-when { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+  .flag-title { font-family: var(--serif); font-size: 14px; line-height: 1.35; }
+  .flag-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.04em; margin-top: 2px; }
+  .flag-row.amber { --accent: var(--amber); }
+  .flag-row.rose  { --accent: var(--rose); }
+  .flag-row.sky   { --accent: var(--sky); }
+
+  /* design principle footer */
+  .principle {
+    margin-top: 32px;
+    padding: 18px 22px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 18px;
+  }
+  .principle h4 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase; margin: 0 0 6px; }
+  .principle p  { font-family: var(--serif); font-size: 13px; line-height: 1.45; color: var(--ink-2); margin: 0; }
+  .principle .col { display: flex; flex-direction: column; gap: 4px; }
+
+  /* tiny helpers */
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .meter-mini {
+    height: 4px; background: var(--paper-4); border-radius: 999px; overflow: hidden;
+  }
+  .meter-mini > i { display: block; height: 100%; border-radius: 999px; }
+
+  /* SVG icon stroke unification */
+  svg.icon { stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">T</div>
+      <div>
+        <div class="micro">Notification system · spec v0.4</div>
+        <h1>Theodore <span class="session">· alerts & digests</span></h1>
+      </div>
+    </div>
+    <div class="breadcrumb"><a href="Theodore.html">← Caregiver dashboard</a></div>
+  </div>
+
+  <!-- ╭───────────────────── 1. URGENT (caregiver push) ────────────────────╮ -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="label"><span class="pip" style="background:var(--rose);"></span><span class="micro">Caregiver · push</span></div>
+        <h2>Urgent alerts</h2>
+        <p>Real-time interruptions. Sent only when Theodore's own intervention has already failed or there's a clear safety signal.</p>
+      </div>
+    </div>
+
+    <!-- Phone mockup with stacked lock-screen alerts + on-screen alert sample -->
+    <div class="phone-row">
+      <!-- phone -->
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-statusbar">
+            <span>9:41</span>
+            <span class="icons">
+              <svg class="icon" width="14" height="10" viewBox="0 0 14 10"><path d="M1 8 L4 8 L4 6 L1 6 Z M5 8 L8 8 L8 4 L5 4 Z M9 8 L12 8 L12 2 L9 2 Z"/></svg>
+              <svg class="icon" width="13" height="10" viewBox="0 0 13 10"><path d="M2 8 Q6.5 3 11 8" /><path d="M4 8 Q6.5 5 9 8" /><circle cx="6.5" cy="8.5" r="0.6" fill="currentColor"/></svg>
+              <span style="font-size:10px; opacity: 0.85;">82</span>
+              <svg class="icon" width="22" height="10" viewBox="0 0 22 10"><rect x="0.5" y="1.5" width="18" height="7" rx="1.5"/><rect x="2" y="3" width="14" height="4" rx="0.5" fill="currentColor" stroke="none"/><line x1="20" y1="3.5" x2="20" y2="6.5"/></svg>
+            </span>
+          </div>
+          <div class="phone-time">
+            <div class="clock">9:41</div>
+            <div class="date">Wednesday, May 1</div>
+          </div>
+
+          <div class="phone-stack">
+            <div class="lock-notif urgent first">
+              <div class="lock-notif-head">
+                <span class="app-icon">T</span>
+                <span>Theodore</span>
+                <span class="time">now</span>
+              </div>
+              <div class="lock-notif-title">Agitation didn't settle</div>
+              <div class="lock-notif-desc">Spike at 9:34 — Theodore tried hugs and music. Heart rate proxy still elevated 7 min in.</div>
+            </div>
+            <div class="lock-notif">
+              <div class="lock-notif-head">
+                <span class="app-icon">T</span>
+                <span>Theodore</span>
+                <span class="time">8:31a</span>
+              </div>
+              <div class="lock-notif-title">"I need to go home"</div>
+              <div class="lock-notif-desc">Wandering language detected — first time this week. Resolved within 40 s.</div>
+            </div>
+            <div class="lock-notif">
+              <div class="lock-notif-head">
+                <span class="app-icon">T</span>
+                <span>Theodore</span>
+                <span class="time">7:55a</span>
+              </div>
+              <div class="lock-notif-title">Breakfast may have been skipped</div>
+              <div class="lock-notif-desc">No mention of food in conversation. Worth a check-in.</div>
+            </div>
+          </div>
+          <div class="phone-bar"></div>
+        </div>
+      </div>
+
+      <!-- Detailed urgent cards (the "expanded" view caregiver sees on tap) -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="notif urgent">
+          <div class="notif-head">
+            <div class="notif-icon">
+              <svg class="icon" width="14" height="14" viewBox="0 0 14 14"><path d="M7 1 L13 12 L1 12 Z"/><line x1="7" y1="5" x2="7" y2="9"/><circle cx="7" cy="10.6" r="0.7" fill="currentColor" stroke="none"/></svg>
+            </div>
+            <span class="notif-app">Theodore · live</span>
+            <span class="notif-priority">Urgent</span>
+            <span class="notif-time">just now</span>
+          </div>
+          <div class="notif-body">
+            <h3 class="notif-title">Agitation didn't settle after intervention</h3>
+            <p class="notif-desc">Spike began 9:34a · Theodore played music, prompted breathing, and offered a hug. Jerk magnitude is still 0.42 g/s seven minutes in — above his 14-day max.</p>
+          </div>
+          <div class="notif-actions">
+            <button class="btn alert">Call Theodore</button>
+            <button class="btn">Listen in</button>
+            <button class="btn ghost">I'm on my way</button>
+          </div>
+        </div>
+
+        <div class="notif urgent">
+          <div class="notif-head">
+            <div class="notif-icon">
+              <svg class="icon" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.5"/><line x1="7" y1="3" x2="7" y2="7"/><line x1="7" y1="7" x2="9.5" y2="9"/></svg>
+            </div>
+            <span class="notif-app">Theodore · live</span>
+            <span class="notif-priority">Urgent</span>
+            <span class="notif-time">2 min ago</span>
+          </div>
+          <div class="notif-body">
+            <h3 class="notif-title">Prolonged unresponsiveness — 6 min</h3>
+            <p class="notif-desc">Theodore asked twice with no reply. IMU shows no motion since 9:33a. May have nodded off in the chair, or a fall.</p>
+          </div>
+          <div class="notif-actions">
+            <button class="btn alert">Open camera</button>
+            <button class="btn">Call</button>
+            <button class="btn ghost">Snooze 5 min</button>
+          </div>
+        </div>
+
+        <div class="notif warn">
+          <div class="notif-head">
+            <div class="notif-icon">
+              <svg class="icon" width="14" height="14" viewBox="0 0 14 14"><path d="M2 11 L7 3 L12 11 Z"/><line x1="7" y1="6" x2="7" y2="9"/></svg>
+            </div>
+            <span class="notif-app">Theodore</span>
+            <span class="notif-priority">Wandering language</span>
+            <span class="notif-time">8:31a</span>
+          </div>
+          <div class="notif-body">
+            <h3 class="notif-title">"I need to go home" — first this week</h3>
+            <p class="notif-desc">Said three times in 90 s while sitting in the kitchen. Theodore reoriented him gently; he settled within 40 s.</p>
+          </div>
+          <div class="notif-actions">
+            <button class="btn primary">Hear the moment</button>
+            <button class="btn">Mark resolved</button>
+          </div>
+        </div>
+
+        <div class="notif warn">
+          <div class="notif-head">
+            <div class="notif-icon">
+              <svg class="icon" width="14" height="14" viewBox="0 0 14 14"><path d="M3 5 Q3 3 5 3 H9 Q11 3 11 5 V8 Q11 11 7 11 Q3 11 3 8 Z"/><line x1="5" y1="6" x2="9" y2="6"/></svg>
+            </div>
+            <span class="notif-app">Theodore</span>
+            <span class="notif-priority">Missed meal</span>
+            <span class="notif-time">7:55a</span>
+          </div>
+          <div class="notif-body">
+            <h3 class="notif-title">Breakfast not mentioned</h3>
+            <p class="notif-desc">No food references in 45 minutes of morning conversation; usually he talks about toast or eggs by 7:30. Worth a gentle check.</p>
+          </div>
+          <div class="notif-actions">
+            <button class="btn primary">Ask Theodore to prompt</button>
+            <button class="btn ghost">Dismiss</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╭───────────────────── 2. DAILY DIGEST ─────────────────────╮ -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="label"><span class="pip" style="background:var(--amber);"></span><span class="micro">Caregiver · 7:00 pm</span></div>
+        <h2>Daily digest</h2>
+        <p>Batched summary delivered once a day. Mood arc, conversation, meds, cognitive probes, and any sundowning episodes.</p>
+      </div>
+      <span class="micro">Wed · May 1</span>
+    </div>
+
+    <div class="digest-card">
+      <div class="digest-head">
+        <div>
+          <div class="micro">Today with Theodore</div>
+          <div class="digest-title">A warmer day — longest hug of the week, one disorientation moment at 8:31.</div>
+        </div>
+        <span class="num" style="font-size: 13px; color: var(--ink-3);">12 conversations · 4h 18m</span>
+      </div>
+
+      <!-- mood arc -->
+      <div>
+        <div class="arc-row">
+          <div class="arc-label">Mood arc</div>
+          <div class="mood-arc">
+            <svg viewBox="0 0 600 38" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="mood-grad" x1="0" x2="1">
+                  <stop offset="0%"  stop-color="oklch(0.72 0.13 70)"/>
+                  <stop offset="35%" stop-color="oklch(0.62 0.09 145)"/>
+                  <stop offset="55%" stop-color="oklch(0.58 0.16 25)"/>
+                  <stop offset="75%" stop-color="oklch(0.62 0.09 145)"/>
+                  <stop offset="100%" stop-color="oklch(0.62 0.09 235)"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,22 C40,18 80,12 120,10 C170,8 200,12 240,16 C280,20 320,30 360,28 C400,26 440,16 480,14 C520,12 560,18 600,22"
+                fill="none" stroke="url(#mood-grad)" stroke-width="2.2" stroke-linejoin="round" />
+              <circle cx="330" cy="29" r="3.5" fill="var(--rose)"/>
+              <line x1="330" y1="0" x2="330" y2="38" stroke="var(--rose)" stroke-dasharray="2 3" opacity="0.5"/>
+            </svg>
+          </div>
+        </div>
+        <div class="arc-row">
+          <div></div>
+          <div class="mood-axis">
+            <span>6a</span><span>9a</span><span>12p</span><span>3p</span><span>6p</span><span>9p</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- engagement metrics -->
+      <div class="digest-grid">
+        <div class="digest-stat">
+          <div class="digest-stat-label">Conversation</div>
+          <div class="digest-stat-value">4h 18m</div>
+          <div class="digest-stat-trend" style="color: var(--sage);">↑ +42m vs avg</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-label">Turn count</div>
+          <div class="digest-stat-value">312</div>
+          <div class="digest-stat-trend">avg 280</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-label">Responsiveness</div>
+          <div class="digest-stat-value">87<span class="digest-stat-unit">%</span></div>
+          <div class="digest-stat-trend" style="color: var(--sage);">strong</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-label">Probes correct</div>
+          <div class="digest-stat-value">3<span class="digest-stat-unit">/4</span></div>
+          <div class="digest-stat-trend">missed: today's date</div>
+        </div>
+      </div>
+
+      <!-- two columns: meds + sundowning -->
+      <div class="grid-2">
+        <div>
+          <div class="micro" style="margin-bottom: 8px;">Medication compliance</div>
+          <div class="comp-list">
+            <div class="comp-row">
+              <div class="comp-time">8:02a</div>
+              <div class="comp-name">Donepezil 10 mg</div>
+              <span class="comp-tag ack">Acked</span>
+            </div>
+            <div class="comp-row">
+              <div class="comp-time">12:14p</div>
+              <div class="comp-name">Lisinopril 5 mg</div>
+              <span class="comp-tag conf">Confused</span>
+            </div>
+            <div class="comp-row">
+              <div class="comp-time">5:30p</div>
+              <div class="comp-name">Memantine 10 mg</div>
+              <span class="comp-tag miss">Missed</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="micro" style="margin-bottom: 8px;">Sundowning episodes</div>
+          <div class="comp-list">
+            <div class="comp-row" style="grid-template-columns: 60px 1fr 100px;">
+              <div class="comp-time">5:48p</div>
+              <div class="comp-name">Restlessness, repeating "where's Margie?" · 6 min</div>
+              <span class="comp-tag ack">Music helped</span>
+            </div>
+            <div class="comp-row" style="grid-template-columns: 60px 1fr 100px;">
+              <div class="comp-time">6:32p</div>
+              <div class="comp-name">Brief agitation while window light faded · 3 min</div>
+              <span class="comp-tag ack">Hug helped</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╭───────────────────── 3. WEEKLY TREND ─────────────────────╮ -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="label"><span class="pip" style="background:var(--plum);"></span><span class="micro">Caregiver · Monday morning</span></div>
+        <h2>Weekly trend report</h2>
+        <p>Personalized drift detection. Compared to <em>his own</em> 14-day baseline, never to population norms.</p>
+      </div>
+      <span class="micro">Apr 24 — May 1</span>
+    </div>
+
+    <div class="digest-card trend-card">
+      <div class="trend-head">
+        <div>
+          <div class="micro">Headline</div>
+          <div class="digest-title">Engagement up · vocabulary steady · sleep onset slipping ~22 min later than baseline.</div>
+        </div>
+        <span class="badge">vs. own baseline</span>
+      </div>
+
+      <!-- CDR dimensions -->
+      <div>
+        <div class="micro" style="margin-bottom: 6px;">CDR trajectory</div>
+        <div class="baseline-grid">
+          <div class="baseline-cell">
+            <div class="bl-name">Memory</div>
+            <div class="bl-row">
+              <div class="bl-now">1.0</div>
+              <div class="bl-base">base 0.9</div>
+              <div class="bl-delta down">+0.1</div>
+            </div>
+            <svg class="bl-spark" viewBox="0 0 100 22" preserveAspectRatio="none">
+              <polyline points="0,12 14,13 28,12 42,14 56,13 70,15 84,16 100,16" fill="none" stroke="var(--rose)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="baseline-cell">
+            <div class="bl-name">Orientation</div>
+            <div class="bl-row">
+              <div class="bl-now">1.0</div>
+              <div class="bl-base">base 0.8</div>
+              <div class="bl-delta down">+0.2</div>
+            </div>
+            <svg class="bl-spark" viewBox="0 0 100 22" preserveAspectRatio="none">
+              <polyline points="0,10 14,11 28,12 42,12 56,14 70,15 84,16 100,17" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="baseline-cell">
+            <div class="bl-name">Communication</div>
+            <div class="bl-row">
+              <div class="bl-now">0.5</div>
+              <div class="bl-base">base 0.5</div>
+              <div class="bl-delta flat">±0</div>
+            </div>
+            <svg class="bl-spark" viewBox="0 0 100 22" preserveAspectRatio="none">
+              <polyline points="0,11 14,11 28,10 42,11 56,11 70,10 84,11 100,11" fill="none" stroke="var(--sky)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="baseline-cell">
+            <div class="bl-name">Vocab diversity</div>
+            <div class="bl-row">
+              <div class="bl-now">0.61</div>
+              <div class="bl-base">base 0.58</div>
+              <div class="bl-delta up">↑ +5%</div>
+            </div>
+            <svg class="bl-spark" viewBox="0 0 100 22" preserveAspectRatio="none">
+              <polyline points="0,14 14,13 28,12 42,11 56,11 70,10 84,9 100,8" fill="none" stroke="var(--sage)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="baseline-cell">
+            <div class="bl-name">Sleep onset</div>
+            <div class="bl-row">
+              <div class="bl-now">10:48p</div>
+              <div class="bl-base">base 10:26p</div>
+              <div class="bl-delta down">+22m</div>
+            </div>
+            <svg class="bl-spark" viewBox="0 0 100 22" preserveAspectRatio="none">
+              <polyline points="0,8 14,9 28,10 42,11 56,12 70,13 84,15 100,16" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="baseline-cell">
+            <div class="bl-name">Daily engagement</div>
+            <div class="bl-row">
+              <div class="bl-now">11.5h</div>
+              <div class="bl-base">base 10.3h</div>
+              <div class="bl-delta up">↑ +12%</div>
+            </div>
+            <svg class="bl-spark" viewBox="0 0 100 22" preserveAspectRatio="none">
+              <polyline points="0,16 14,15 28,13 42,14 56,12 70,11 84,9 100,8" fill="none" stroke="var(--sage)" stroke-width="1.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╭───────────────────── 4. PATIENT-FACING ─────────────────────╮ -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="label"><span class="pip" style="background:var(--sage);"></span><span class="micro">Theodore · spoken aloud</span></div>
+        <h2>What Theodore says to him</h2>
+        <p>Warm, brief, never about clinical metrics. He never hears about scores, drift, or trends — those stay with the caregiver.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="speak-bubble">
+        <div class="from">
+          <div class="avatar">T</div>
+          <div>
+            <div class="from-name">Theodore says</div>
+            <div class="wave">
+              <i style="height:30%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:62%"></i>
+              <i style="height:95%"></i><i style="height:70%"></i><i style="height:42%"></i><i style="height:58%"></i>
+              <i style="height:78%"></i><i style="height:48%"></i><i style="height:30%"></i><i style="height:60%"></i>
+              <i style="height:85%"></i><i style="height:50%"></i><i style="height:35%"></i>
+            </div>
+          </div>
+        </div>
+        <p class="quote">"It's about ten o'clock — your morning pills are next to your tea. Take them whenever you're ready."</p>
+        <div class="ctx">Trigger · medication window · gentle reminder</div>
+      </div>
+
+      <div class="speak-bubble">
+        <div class="from">
+          <div class="avatar">T</div>
+          <div>
+            <div class="from-name">Theodore says</div>
+            <div class="wave">
+              <i style="height:25%"></i><i style="height:48%"></i><i style="height:72%"></i><i style="height:55%"></i>
+              <i style="height:88%"></i><i style="height:62%"></i><i style="height:35%"></i><i style="height:50%"></i>
+            </div>
+          </div>
+        </div>
+        <p class="quote">"You've been sitting a while. Want to do a little stretching together?"</p>
+        <div class="ctx">Trigger · 90 min sedentary · activity prompt</div>
+      </div>
+
+      <div class="speak-bubble">
+        <div class="from">
+          <div class="avatar">T</div>
+          <div>
+            <div class="from-name">Theodore says</div>
+            <div class="wave">
+              <i style="height:35%"></i><i style="height:65%"></i><i style="height:50%"></i><i style="height:82%"></i>
+              <i style="height:48%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:30%"></i>
+            </div>
+          </div>
+        </div>
+        <p class="quote">"It's almost lunchtime — Margie left soup in the fridge."</p>
+        <div class="ctx">Trigger · time orientation · 11:45a</div>
+      </div>
+
+      <div class="speak-bubble">
+        <div class="from">
+          <div class="avatar">T</div>
+          <div>
+            <div class="from-name">Theodore says</div>
+            <div class="wave">
+              <i style="height:40%"></i><i style="height:72%"></i><i style="height:58%"></i><i style="height:48%"></i>
+              <i style="height:80%"></i><i style="height:60%"></i><i style="height:38%"></i><i style="height:52%"></i>
+            </div>
+          </div>
+        </div>
+        <p class="quote">"Your daughter mentioned she'd call this afternoon. Should be soon."</p>
+        <div class="ctx">Trigger · social prompt · from family note</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╭───────────────────── 5. CLINICAL ANOMALY FLAGS ─────────────────────╮ -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="label"><span class="pip" style="background:var(--sky);"></span><span class="micro">Clinical · for review queue</span></div>
+        <h2>Anomaly flags</h2>
+        <p>Not real-time. Sessions flagged when speech biomarkers cross a personalized threshold — picked up by the research/clinical team in batch.</p>
+      </div>
+      <span class="micro">14d window</span>
+    </div>
+
+    <div class="flag-list">
+      <div class="flag-row amber">
+        <div class="flag-when">Wed · 7:14a</div>
+        <div>
+          <div class="flag-title">Type-token ratio dropped from 0.61 to 0.48 mid-session</div>
+          <div class="flag-meta">14-min window · z-score −2.1 · session #312</div>
+        </div>
+        <button class="btn">Open session →</button>
+      </div>
+      <div class="flag-row rose">
+        <div class="flag-when">Tue · 8:02p</div>
+        <div>
+          <div class="flag-title">Pause frequency 2.4× personal baseline</div>
+          <div class="flag-meta">11.4 pauses/min &gt; 2.5s · usual 4.7 · session #309</div>
+        </div>
+        <button class="btn">Open session →</button>
+      </div>
+      <div class="flag-row sky">
+        <div class="flag-when">Mon · 6:38a</div>
+        <div>
+          <div class="flag-title">Story repetition rate spike — "fishing with dad" 4× in 18 min</div>
+          <div class="flag-meta">prior 14d max: 2× per session · session #305</div>
+        </div>
+        <button class="btn">Open session →</button>
+      </div>
+      <div class="flag-row amber">
+        <div class="flag-when">Sun · 10:05a</div>
+        <div>
+          <div class="flag-title">Shimmer elevated for 3 consecutive sessions</div>
+          <div class="flag-meta">3.4 / 3.2 / 3.1 % · personal mean 2.4 · sessions #298–#302</div>
+        </div>
+        <button class="btn">Open session →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╭───────────────────── DESIGN PRINCIPLE FOOTER ─────────────────────╮ -->
+  <div class="principle">
+    <div class="col">
+      <h4>Urgent things interrupt</h4>
+      <p>Push notifications, sounds, persistent banners. Reserved for safety signals and failed self-regulation.</p>
+    </div>
+    <div class="col">
+      <h4>Trends get batched</h4>
+      <p>Daily at 7:00 pm, weekly on Monday. Personalized drift, never population norms.</p>
+    </div>
+    <div class="col">
+      <h4>The patient never hears clinical data</h4>
+      <p>Theodore speaks warmly and briefly. He'll mention lunch — not vocabulary diversity.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
