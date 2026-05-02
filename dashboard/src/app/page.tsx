@@ -178,10 +178,10 @@ function BodyStatusCard() {
 
           {/* Sensor indicators — 6 total, none on head */}
           {/* Body: two vertically aligned on chest/belly */}
-          <div className="absolute top-[42%] left-1/2 -translate-x-1/2">
+          <div className="absolute top-[50%] left-1/2 -translate-x-1/2">
             <div className="pip on" title="Mic: OK" />
           </div>
-          <div className="absolute top-[58%] left-1/2 -translate-x-1/2">
+          <div className="absolute top-[64%] left-1/2 -translate-x-1/2">
             <div className="pip on" title="IMU: OK" />
           </div>
           {/* Hands: on each hoof/hand tip */}
