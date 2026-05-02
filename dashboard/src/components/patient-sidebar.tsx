@@ -63,6 +63,7 @@ function AddPatientForm({ onDone }: { onDone: () => void }) {
 export function PatientSidebar() {
   const { patients, active, setActiveId, removePatient, sidebarOpen, toggleSidebar } = usePatient()
   const [showForm, setShowForm] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   if (!sidebarOpen) return null
 
@@ -149,14 +150,33 @@ export function PatientSidebar() {
                   </div>
 
                   <button
-                    onClick={(e) => { e.stopPropagation(); removePatient(patient.id) }}
-                    className="btn btn-icon btn-ghost opacity-0 group-hover:opacity-100 hover:!opacity-100"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(patient.id) }}
+                    className="btn btn-icon btn-ghost"
                     style={{ opacity: 0.3 }}
                     aria-label="Remove patient"
                   >
                     <Trash2 size={13} />
                   </button>
                 </div>
+
+                {/* Confirm delete inline */}
+                {confirmDeleteId === patient.id && (
+                  <div className="mt-2 ml-[52px] flex items-center gap-2 p-2 bg-[var(--rose-soft)] border border-[color-mix(in_oklch,var(--rose)_30%,var(--line))] rounded-lg">
+                    <span className="font-mono text-[10px] text-[oklch(0.45_0.09_25)] flex-1">Remove {patient.name}?</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removePatient(patient.id); setConfirmDeleteId(null) }}
+                      className="font-mono text-[10px] px-2 py-1 rounded bg-[var(--rose)] text-white border-0 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null) }}
+                      className="font-mono text-[10px] px-2 py-1 rounded bg-[var(--paper-3)] border border-[var(--line)] cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex gap-4 mt-2 ml-[52px]">
                   <div>
