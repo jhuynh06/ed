@@ -7,7 +7,9 @@ Returns AudioResult with transcription and vocal emotion scores.
 from __future__ import annotations
 
 import io
+import logging
 import os
+import threading
 import wave
 import struct
 from dataclasses import dataclass, field
@@ -24,6 +26,8 @@ from transformers import pipeline as hf_pipeline
 from app.acoustic_features import AcousticFeatures, AcousticExtractor
 from app.nlp_features import NLPFeatures, NLPExtractor
 from app.cdr_mapping import CDRScores, map_to_cdr
+
+logger = logging.getLogger(__name__)
 
 # ── Constants ────────────────────────────────────────────────────────
 SAMPLE_RATE = 16_000
@@ -46,22 +50,47 @@ class AudioResult:
 
 
 class AudioPipeline:
-    """Stateful pipeline: accumulates frames, gates on VAD, runs inference."""
+    """Stateful pipeline: accumulates frames, gates on VAD, runs inference.
+
+    The wav2vec2 emotion model (1.27GB) is loaded in a background thread
+    so the pipeline can start processing audio immediately.  Transcription
+    and acoustic features work right away; emotion scores default to
+    neutral until the model is ready.
+    """
 
     def __init__(self) -> None:
         self._vad_model = load_silero_vad()
         self._groq = Groq(api_key=os.environ["GROQ_API_KEY"])
-        # wav2vec2 fine-tuned for emotion — runs locally
-        self._emotion_pipe = hf_pipeline(
-            "audio-classification",
-            model="ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition",
-            device="cpu",
+
+        # Emotion model loads in background — None until ready
+        self._emotion_pipe = None
+        self._emotion_ready = threading.Event()
+        self._emotion_thread = threading.Thread(
+            target=self._load_emotion_model, daemon=True
         )
+        self._emotion_thread.start()
+
         self._acoustic = AcousticExtractor()
         self._nlp = NLPExtractor()
         self._buffer: list[np.ndarray] = []
         self._frame_count: int = 0
         self._prev_nlp: NLPFeatures | None = None
+
+    def _load_emotion_model(self) -> None:
+        """Download and load wav2vec2 emotion model in background."""
+        try:
+            logger.info("Loading emotion model in background...")
+            pipe = hf_pipeline(
+                "audio-classification",
+                model="ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition",
+                device="cpu",
+            )
+            self._emotion_pipe = pipe
+            self._emotion_ready.set()
+            logger.info("Emotion model ready")
+        except Exception as e:
+            logger.error(f"Failed to load emotion model: {e}")
+            self._emotion_ready.set()  # unblock, will run without emotion
 
     def push_frame(self, frame: np.ndarray) -> AudioResult | None:
         """Push a 512-sample frame. Returns AudioResult when speech ends, else None."""
@@ -119,17 +148,26 @@ class AudioPipeline:
                 response_format="verbose_json",
             )
             transcription = result.text.strip()
-            detected_lang = getattr(result, "language", "en") or "en"
+            # Whisper returns full names like "English", "Chinese" — map to ISO codes
+            raw_lang = (getattr(result, "language", "") or "").lower()
+            _LANG_MAP = {
+                "english": "en", "en": "en",
+                "chinese": "zh", "mandarin": "zh", "zh": "zh",
+            }
+            detected_lang = _LANG_MAP.get(raw_lang, "en")
         except Exception as e:
             transcription = f"[transcription error: {e}]"
 
-        # wav2vec2 emotion classification
+        # wav2vec2 emotion classification (skipped if model still loading)
         valence, arousal, dominant = 0.0, 0.0, "neutral"
-        try:
-            preds = self._emotion_pipe({"array": audio, "sampling_rate": SAMPLE_RATE})
-            valence, arousal, dominant = _parse_emotion_preds(preds)
-        except Exception:
-            pass
+        if self._emotion_pipe is not None:
+            try:
+                preds = self._emotion_pipe({"array": audio, "sampling_rate": SAMPLE_RATE})
+                valence, arousal, dominant = _parse_emotion_preds(preds)
+            except Exception:
+                pass
+        else:
+            logger.debug("Emotion model still loading, skipping emotion classification")
 
         # Acoustic features
         acoustic = self._acoustic.extract(audio, SAMPLE_RATE)
