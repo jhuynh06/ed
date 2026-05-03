@@ -154,8 +154,8 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 void websocket_init() {
     webSocket.begin(WS_HOST, WS_PORT, WS_PATH);
     webSocket.onEvent(webSocketEvent);
-    webSocket.setReconnectInterval(RECONNECT_INTERVAL_MS);
-    webSocket.enableHeartbeat(15000, 3000, 2);  // Ping every 15s, timeout 3s, 2 retries
+    webSocket.setReconnectInterval(1000);  // fast reconnect on hotspot
+    // webSocket.enableHeartbeat(15000, 3000, 2);  // disabled — bridge has no ping handler  // Ping every 15s, timeout 3s, 2 retries
     Serial.printf("  WebSocket connecting to ws://%s:%d%s\n", WS_HOST, WS_PORT, WS_PATH);
 }
 
