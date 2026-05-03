@@ -70,24 +70,14 @@ async def bridge():
                 # Print a compact summary
                 imu = data.get("imu", {})
                 touch = data.get("touch", {})
-                flags = []
-                if imu.get("fall_detected"):
-                    flags.append("FALL")
-                if imu.get("hug_detected"):
-                    flags.append("HUG")
-                if imu.get("rocking_detected"):
-                    flags.append("ROCKING")
-                if touch.get("petting_detected"):
-                    flags.append("PETTING")
-                if touch.get("any_contact"):
-                    flags.append(f"TOUCH({len(touch.get('active_pads', []))})")
+                pads = touch.get("pads", [])
 
-                jerk = imu.get("jerk_magnitude", 0)
-                still = imu.get("stillness_duration_s", 0)
-                squeeze = touch.get("squeeze_intensity", 0)
+                ax = imu.get("ax", 0)
+                ay = imu.get("ay", 0)
+                az = imu.get("az", 0)
 
-                status = " | ".join(flags) if flags else "idle"
-                print(f"  jerk={jerk:.3f} still={still:.0f}s squeeze={squeeze:.2f} [{status}]")
+                status = f"pads={pads}" if pads else "idle"
+                print(f"  ax={ax:.3f} ay={ay:.3f} az={az:.3f} [{status}]")
 
                 # Listen for commands from backend
                 try:

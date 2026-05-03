@@ -56,6 +56,7 @@ from app.models import (
     TranscriptionEvent,
     VitalsUpdateEvent,
 )
+from app.sensor_features import SensorFeatureComputer
 from app.sse import event_bus
 
 load_dotenv()
@@ -214,6 +215,7 @@ async def bear_websocket(ws: WebSocket):
     active_episode_id: str | None = None
     agitation_before: float | None = None
     episode_start_time: float | None = None
+    sensor_computer = SensorFeatureComputer()
 
     try:
         while True:
@@ -227,28 +229,31 @@ async def bear_websocket(ws: WebSocket):
                 imu_raw = data.get("imu", {})
                 touch_raw = data.get("touch", {})
 
+                # Compute derived features from raw XYZ + touch pads
+                feat = sensor_computer.update(imu_raw, touch_raw)
+
                 # Publish sensor data to dashboard
                 await event_bus.publish(SensorUpdateEvent(
-                    imu_jerk=imu_raw.get("jerk_magnitude", 0.0),
-                    imu_stillness_s=imu_raw.get("stillness_duration_s", 0.0),
-                    imu_hug=imu_raw.get("hug_detected", False),
-                    imu_rocking=imu_raw.get("rocking_detected", False),
-                    imu_fall=imu_raw.get("fall_detected", False),
-                    touch_any=touch_raw.get("any_contact", False),
-                    touch_squeeze=touch_raw.get("squeeze_intensity", 0.0),
-                    touch_petting=touch_raw.get("petting_detected", False),
-                    touch_grip_s=touch_raw.get("grip_duration_s", 0.0),
-                    touch_active_pads=touch_raw.get("active_pads", []),
+                    imu_jerk=feat.jerk_magnitude,
+                    imu_stillness_s=feat.stillness_duration_s,
+                    imu_hug=feat.hug_detected,
+                    imu_rocking=feat.rocking_detected,
+                    imu_fall=feat.fall_detected,
+                    touch_any=feat.any_contact,
+                    touch_squeeze=feat.squeeze_intensity,
+                    touch_petting=feat.petting_detected,
+                    touch_grip_s=feat.grip_duration_s,
+                    touch_active_pads=feat.active_pads,
                 ))
 
                 # Compute agitation locally (no API calls)
-                jerk = imu_raw.get("jerk_magnitude", 0.0)
+                jerk = feat.jerk_magnitude
                 vocal_arousal = _latest_audio_result.arousal if _latest_audio_result and _latest_audio_result.speech_detected else 0.0
-                touch_absent = 1.0 if not touch_raw.get("any_contact", False) else 0.0
+                touch_absent = 1.0 if not feat.any_contact else 0.0
                 score = min(100.0, (
                     0.30 * min(jerk / 2.0, 1.0) * 100 +
                     0.40 * vocal_arousal * 100 +
-                    0.30 * touch_absent * min(touch_raw.get("grip_duration_s", 0) / 300.0, 1.0) * 100
+                    0.30 * touch_absent * min(feat.grip_duration_s / 300.0, 1.0) * 100
                 ))
                 risk = "high" if score >= 60 else "medium" if score >= 30 else "low"
 
