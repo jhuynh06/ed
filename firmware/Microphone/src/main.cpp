@@ -21,7 +21,7 @@ const char* WIFI_PASSWORD = "12345678";
 
 // ===== Backend WebSocket =====
 // The AudioBridge.py runs on your laptop and connects to the backend
-const char* WS_HOST = "172.20.10.12";  // Your laptop's IP on the hotspot
+const char* WS_HOST = "172.20.10.7";  // Your laptop's IP on the hotspot
 const uint16_t WS_PORT = 8081;        // AudioBridge WebSocket port
 const char* WS_PATH = "/audio";
 
