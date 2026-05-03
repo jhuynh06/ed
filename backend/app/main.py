@@ -220,75 +220,75 @@ async def bear_websocket(ws: WebSocket):
     try:
         while True:
             data = await ws.receive_json()
-
             msg_type = data.get("type")
             if msg_type is None:
                 continue
 
             if msg_type == "sensor_data":
-                imu_raw = data.get("imu", {})
-                touch_raw = data.get("touch", {})
+                try:
+                    imu_raw = data.get("imu", {})
+                    touch_raw = data.get("touch", {})
+                    feat = sensor_computer.update(imu_raw, touch_raw)
 
-                # Compute derived features from raw XYZ + touch pads
-                feat = sensor_computer.update(imu_raw, touch_raw)
-
-                # Publish sensor data to dashboard
-                await event_bus.publish(SensorUpdateEvent(
-                    imu_jerk=feat.jerk_magnitude,
-                    imu_stillness_s=feat.stillness_duration_s,
-                    imu_hug=feat.hug_detected,
-                    imu_rocking=feat.rocking_detected,
-                    imu_fall=feat.fall_detected,
-                    touch_any=feat.any_contact,
-                    touch_squeeze=feat.squeeze_intensity,
-                    touch_petting=feat.petting_detected,
-                    touch_grip_s=feat.grip_duration_s,
-                    touch_active_pads=feat.active_pads,
-                ))
-
-                # Compute agitation locally (no API calls)
-                jerk = feat.jerk_magnitude
-                vocal_arousal = _latest_audio_result.arousal if _latest_audio_result and _latest_audio_result.speech_detected else 0.0
-                touch_absent = 1.0 if not feat.any_contact else 0.0
-                score = min(100.0, (
-                    0.30 * min(jerk / 2.0, 1.0) * 100 +
-                    0.40 * vocal_arousal * 100 +
-                    0.30 * touch_absent * min(feat.grip_duration_s / 300.0, 1.0) * 100
-                ))
-                risk = "high" if score >= 60 else "medium" if score >= 30 else "low"
-
-                _last_status.update(score=score, risk=risk, updated_at=time.time())
-                await event_bus.publish(AgitationUpdateEvent(
-                    timestamp=time.time(), score=score, risk=risk,
-                ))
-
-                # Episode lifecycle
-                if risk in ("medium", "high") and active_episode_id is None:
-                    active_episode_id = str(uuid.uuid4())
-                    agitation_before = score
-                    episode_start_time = time.time()
-                    await event_bus.publish(EpisodeStartEvent(
-                        id=active_episode_id, timestamp=time.time(), agitation=score,
+                    await event_bus.publish(SensorUpdateEvent(
+                        imu_jerk=feat.jerk_magnitude,
+                        imu_stillness_s=feat.stillness_duration_s,
+                        imu_hug=feat.hug_detected,
+                        imu_rocking=feat.rocking_detected,
+                        imu_fall=feat.fall_detected,
+                        touch_any=feat.any_contact,
+                        touch_squeeze=feat.squeeze_intensity,
+                        touch_petting=feat.petting_detected,
+                        touch_grip_s=feat.grip_duration_s,
+                        touch_active_pads=feat.active_pads,
                     ))
-                elif risk == "low" and active_episode_id is not None:
-                    await event_bus.publish(EpisodeEndEvent(
-                        id=active_episode_id,
-                        duration=time.time() - (episode_start_time or time.time()),
-                        peak=agitation_before or score,
-                        outcome="calm restored",
+
+                    jerk = feat.jerk_magnitude
+                    vocal_arousal = _latest_audio_result.arousal if _latest_audio_result and _latest_audio_result.speech_detected else 0.0
+                    touch_absent = 1.0 if not feat.any_contact else 0.0
+                    score = min(100.0, (
+                        0.30 * min(jerk / 2.0, 1.0) * 100 +
+                        0.40 * vocal_arousal * 100 +
+                        0.30 * touch_absent * min(feat.grip_duration_s / 300.0, 1.0) * 100
                     ))
-                    active_episode_id = None
-                    agitation_before = None
-                    episode_start_time = None
+                    risk = "high" if score >= 60 else "medium" if score >= 30 else "low"
+
+                    _last_status.update(score=score, risk=risk, updated_at=time.time())
+                    await event_bus.publish(AgitationUpdateEvent(
+                        timestamp=time.time(), score=score, risk=risk,
+                    ))
+
+                    if risk in ("medium", "high") and active_episode_id is None:
+                        active_episode_id = str(uuid.uuid4())
+                        agitation_before = score
+                        episode_start_time = time.time()
+                        await event_bus.publish(EpisodeStartEvent(
+                            id=active_episode_id, timestamp=time.time(), agitation=score,
+                        ))
+                    elif risk == "low" and active_episode_id is not None:
+                        await event_bus.publish(EpisodeEndEvent(
+                            id=active_episode_id,
+                            duration=time.time() - (episode_start_time or time.time()),
+                            peak=agitation_before or score,
+                            outcome="calm restored",
+                        ))
+                        active_episode_id = None
+                        agitation_before = None
+                        episode_start_time = None
+                except Exception as e:
+                    print(f"[BEAR] sensor error: {e}", flush=True)
+                    import traceback; traceback.print_exc()
 
             elif msg_type == "audio_chunk":
-                # Audio pipeline handled separately — no-op here for now
                 pass
 
     except WebSocketDisconnect:
         _last_status["bear_connected"] = False
         logger.info("Bear disconnected")
-
+    except Exception as e:
+        _last_status["bear_connected"] = False
+        print(f"[BEAR] websocket crash: {e}", flush=True)
+        import traceback; traceback.print_exc()
 
 # ── WebSocket — Audio Stream from ESP32 via AudioBridge ──────────────
 
@@ -594,6 +594,101 @@ async def cancel_mock_scenario():
     count = len(_scenario_tasks)
     _scenario_tasks.clear()
     return {"cancelled": count}
+
+
+@app.get("/mock/seed")
+async def seed_sse_history():
+    """Push 6 hours of historical agitation data + past episodes + notifications into SSE.
+    
+    Call this after seed_demo.py to populate the dashboard on load.
+    """
+    import math
+    import random as _rand
+    _rand.seed(99)
+    now = time.time()
+
+    # 6 hours of agitation history at 1-minute resolution (360 points)
+    history = []
+    for i in range(360):
+        t = now - (360 - i) * 60
+        hour = (360 - i) / 60  # hours ago
+        # Calm morning, mild afternoon, sundowning spike at ~1.5h ago, calm evening
+        if hour > 4:
+            base = 8 + _rand.random() * 6  # calm morning
+        elif hour > 2.5:
+            base = 15 + _rand.random() * 10  # mild afternoon
+        elif hour > 1.5:
+            # Sundowning ramp
+            progress = (2.5 - hour) / 1.0
+            base = 15 + progress * 65 + _rand.random() * 8
+        elif hour > 1.0:
+            # Peak and decline
+            progress = (1.5 - hour) / 0.5
+            base = 80 - progress * 50 + _rand.random() * 8
+        else:
+            base = 18 + _rand.random() * 8  # calm evening
+        score = max(0, min(100, base))
+        risk = "high" if score >= 60 else "medium" if score >= 30 else "low"
+        history.append((t, score, risk))
+
+    for i, (t, score, risk) in enumerate(history):
+        await event_bus.publish(AgitationUpdateEvent(timestamp=t, score=score, risk=risk))
+        if i % 30 == 0:
+            await asyncio.sleep(0.05)  # yield to let SSE drain
+
+    await asyncio.sleep(0.1)
+
+    # Sensor state (current calm)
+    await event_bus.publish(SensorUpdateEvent(
+        imu_jerk=0.02, imu_stillness_s=120, imu_hug=False, imu_rocking=False, imu_fall=False,
+        touch_any=True, touch_squeeze=0.15, touch_petting=True, touch_grip_s=45,
+        touch_active_pads=[0, 1],
+    ))
+
+    # Past episode from ~1.5 hours ago (the sundowning one)
+    ep_id = str(uuid.uuid4())
+    await event_bus.publish(EpisodeStartEvent(id=ep_id, timestamp=now - 5400, agitation=72))
+    await event_bus.publish(EpisodeEndEvent(id=ep_id, duration=480, peak=82, outcome="calm restored — grandson voice + breathing pacer"))
+
+    # Second episode from ~3 hours ago (mild)
+    ep_id2 = str(uuid.uuid4())
+    await event_bus.publish(EpisodeStartEvent(id=ep_id2, timestamp=now - 10800, agitation=38))
+    await event_bus.publish(EpisodeEndEvent(id=ep_id2, duration=180, peak=41, outcome="self-resolved with gentle LED pulse"))
+
+    # Notifications
+    await event_bus.publish(NotificationEvent(
+        message="Margaret had a restless moment this afternoon. Ed played Jake's voice message and guided breathing, and she calmed down within a few minutes. No action needed.",
+        priority="info",
+        mar_trace=[
+            {"critic": "Clinical Safety", "verdict": "APPROVE", "feedback": "Appropriate comfort intervention, no medical concern."},
+            {"critic": "Family Tone", "verdict": "APPROVE", "feedback": "Language is warm and reassuring."},
+            {"critic": "Privacy", "verdict": "APPROVE", "feedback": "No unnecessary detail shared."},
+        ],
+    ))
+    await event_bus.publish(NotificationEvent(
+        message="Sundowning pattern detected — 3rd episode this week between 4-5pm. Consider earlier dinner time or playing familiar music at 3pm.",
+        priority="warning",
+        mar_trace=[
+            {"critic": "Clinical Safety", "verdict": "APPROVE", "feedback": "Pattern recognition is clinically useful."},
+            {"critic": "Family Tone", "verdict": "APPROVE", "feedback": "Actionable and not alarming."},
+            {"critic": "Privacy", "verdict": "APPROVE", "feedback": "No sensitive details."},
+        ],
+    ))
+    await event_bus.publish(NotificationEvent(
+        message="Good news: Margaret's vocabulary diversity has been stable this week (TTR: 0.45). Speech engagement is consistent at ~14 minutes/day.",
+        priority="info",
+    ))
+
+    # A transcription from earlier
+    await event_bus.publish(TranscriptionEvent(
+        text="I had a nice dream about the garden.",
+        emotion="happy",
+        valence=0.4,
+        arousal=0.2,
+    ))
+
+    return {"status": "seeded", "agitation_points": len(history), "episodes": 2, "notifications": 3}
+
 
 
 # ── REST — Status ─────────────────────────────────────────────────────

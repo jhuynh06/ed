@@ -1,28 +1,27 @@
 """
 SensorBridge.py — Reads JSON from ESP32 serial and forwards to Ed backend via WebSocket.
-
-Usage:
-    pip install pyserial websockets
-    python SensorBridge.py
-
-Set COM_PORT to your ESP32's serial port (e.g. COM3 on Windows, /dev/ttyUSB0 on Linux).
-Set WS_URL to your backend's WebSocket endpoint.
 """
 
 import asyncio
 import json
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import serial
 import websockets
 
-# ── Configuration ─────────────────────────────────────────────────────
-
-COM_PORT = "COM12"          # Change to your ESP32 port
+COM_PORT = "COM13"
 BAUD_RATE = 115200
 WS_URL = "ws://localhost:8000/ws/bear"
 
-# ── Main loop ─────────────────────────────────────────────────────────
+executor = ThreadPoolExecutor(max_workers=1)
+
+
+def read_serial_line(ser):
+    """Blocking serial read — runs in thread pool."""
+    return ser.readline().decode("utf-8", errors="ignore").strip()
+
 
 async def bridge():
     print(f"=== Ed Sensor Bridge ===")
@@ -31,30 +30,33 @@ async def bridge():
     print()
 
     try:
-        ser = serial.Serial(COM_PORT, BAUD_RATE, timeout=0.1)
+        ser = serial.Serial(COM_PORT, BAUD_RATE, timeout=0.5)
     except serial.SerialException as e:
         print(f"  ERROR: Could not open {COM_PORT}: {e}")
-        print(f"  Available ports:")
         from serial.tools.list_ports import comports
         for p in comports():
             print(f"    {p.device} — {p.description}")
         sys.exit(1)
 
-    print(f"  Serial connected. Waiting for backend WebSocket...")
+    time.sleep(0.3)
+    ser.reset_input_buffer()
+    print("  Serial ready.")
 
-    async for ws in websockets.connect(WS_URL):
-        print(f"  WebSocket connected. Bridging data...\n")
+    loop = asyncio.get_event_loop()
+
+    while True:
         try:
+            print("  Connecting to backend...")
+            ws = await websockets.connect(WS_URL)
+            print("  WebSocket connected. Bridging data...\n")
+
             while True:
-                line = ser.readline().decode("utf-8", errors="ignore").strip()
+                # Non-blocking serial read via thread pool
+                line = await loop.run_in_executor(executor, read_serial_line, ser)
                 if not line:
-                    await asyncio.sleep(0.01)
                     continue
 
-                # Only forward lines that look like JSON sensor packets
-                if not line.startswith("{"):
-                    # Print non-JSON lines (boot messages, debug output)
-                    print(f"  [ESP32] {line}")
+                if not (line.startswith("{") and line.endswith("}")):
                     continue
 
                 try:
@@ -67,28 +69,14 @@ async def bridge():
 
                 await ws.send(line)
 
-                # Print a compact summary
                 imu = data.get("imu", {})
-                touch = data.get("touch", {})
-                pads = touch.get("pads", [])
-
-                ax = imu.get("ax", 0)
-                ay = imu.get("ay", 0)
-                az = imu.get("az", 0)
-
+                pads = data.get("touch", {}).get("pads", [])
                 status = f"pads={pads}" if pads else "idle"
-                print(f"  ax={ax:.3f} ay={ay:.3f} az={az:.3f} [{status}]")
+                print(f"  ax={imu.get('ax',0):.3f} ay={imu.get('ay',0):.3f} az={imu.get('az',0):.3f} [{status}]")
 
-                # Listen for commands from backend
-                try:
-                    msg = await asyncio.wait_for(ws.recv(), timeout=0.01)
-                    print(f"  [Backend] {msg}")
-                except asyncio.TimeoutError:
-                    pass
-
-        except websockets.ConnectionClosed:
-            print("  WebSocket disconnected. Reconnecting...")
-            continue
+        except (websockets.ConnectionClosed, ConnectionRefusedError, OSError) as e:
+            print(f"  WebSocket error: {e}. Reconnecting in 2s...")
+            await asyncio.sleep(2)
         except KeyboardInterrupt:
             break
 

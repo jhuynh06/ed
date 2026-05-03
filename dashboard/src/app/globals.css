@@ -183,7 +183,7 @@ body::before {
   flex-direction: column;
   gap: 10px;
   position: relative;
-  overflow: hidden;
+  /* overflow removed to allow MAR trace expansion */
   min-width: 0;
 }
 .notif::before {

@@ -2,18 +2,12 @@
  * ESP32 Sensors — Reads raw accelerometer + touch data and sends JSON over serial.
  * All feature computation (jerk, fall, rocking, etc.) happens in the backend.
  *
- * JSON format:
- * {
- *   "type": "sensor_data",
- *   "ts": 12.345,
- *   "imu": { "ax": 0.01, "ay": -0.02, "az": 1.00 },
- *   "touch": { "pads": [0, 3, 5] }
- * }
+ * JSON format (compact, ~100 bytes):
+ * {"type":"sensor_data","ts":12.3,"imu":{"ax":0.010,"ay":-0.020,"az":1.000},"touch":{"pads":[0,3]}}
  */
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <ArduinoJson.h>
 
 // ============================================================
 // Configuration
@@ -39,11 +33,9 @@ namespace Accel {
   bool initialized = false;
   float ax = 0.0f, ay = 0.0f, az = 0.0f;
 
-  // Rate-limit I2C reads (100 Hz max)
   constexpr unsigned long SAMPLE_MS = 10;
   unsigned long lastReadMs = 0;
 
-  // I2C recovery
   constexpr int MAX_READ_FAILURES = 10;
   int consecutiveReadFailures = 0;
 
@@ -111,13 +103,10 @@ namespace Accel {
     initialized = true;
     Serial.println("[Accel] MPU6050 ready.");
 
-    // Verify we get real data
     float tx, ty, tz;
     if (readAccelG(tx, ty, tz)) {
-      Serial.printf("[Accel] Initial read: ax=%.3f ay=%.3f az=%.3f\n", tx, ty, tz);
+      Serial.printf("[Accel] Initial: ax=%.3f ay=%.3f az=%.3f\n", tx, ty, tz);
       ax = tx; ay = ty; az = tz;
-    } else {
-      Serial.println("[Accel] WARNING: initial read failed");
     }
   }
 
@@ -130,9 +119,7 @@ namespace Accel {
     float nx, ny, nz;
     if (!readAccelG(nx, ny, nz)) {
       consecutiveReadFailures++;
-      if (consecutiveReadFailures >= MAX_READ_FAILURES) {
-        recoverI2C();
-      }
+      if (consecutiveReadFailures >= MAX_READ_FAILURES) recoverI2C();
     } else {
       consecutiveReadFailures = 0;
       ax = nx; ay = ny; az = nz;
@@ -193,7 +180,7 @@ namespace Touch {
 }
 
 // ============================================================
-// Serial JSON Output
+// Compact JSON Output (~100 bytes vs ~140 with ArduinoJson)
 // ============================================================
 namespace Output {
   unsigned long lastSendMs = 0;
@@ -203,25 +190,20 @@ namespace Output {
     if (now - lastSendMs < Config::SEND_INTERVAL_MS) return;
     lastSendMs = now;
 
-    JsonDocument doc;
-    doc["type"] = "sensor_data";
-    doc["ts"] = (double)millis() / 1000.0;
+    char buf[160];
+    int len = snprintf(buf, sizeof(buf),
+      "{\"type\":\"sensor_data\",\"ts\":%.1f,\"imu\":{\"ax\":%.3f,\"ay\":%.3f,\"az\":%.3f},\"touch\":{\"pads\":[",
+      (double)now / 1000.0, Accel::ax, Accel::ay, Accel::az);
 
-    JsonObject imu = doc["imu"].to<JsonObject>();
-    imu["ax"] = Accel::ax;
-    imu["ay"] = Accel::ay;
-    imu["az"] = Accel::az;
-
-    JsonObject touch = doc["touch"].to<JsonObject>();
-    JsonArray pads = touch["pads"].to<JsonArray>();
+    bool first = true;
     for (size_t i = 0; i < Touch::SENSOR_COUNT; i++) {
       if (Touch::sensors[i].currentState == HIGH) {
-        pads.add((int)i);
+        len += snprintf(buf + len, sizeof(buf) - len, first ? "%d" : ",%d", (int)i);
+        first = false;
       }
     }
-
-    serializeJson(doc, Serial);
-    Serial.println();
+    strncat(buf, "]}}", sizeof(buf) - len - 1);
+    Serial.println(buf);
   }
 }
 
@@ -231,7 +213,6 @@ namespace Output {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-
   Accel::init();
   Touch::init();
 }

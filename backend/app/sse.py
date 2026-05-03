@@ -32,7 +32,7 @@ class EventBus:
         self._subscribers: list[asyncio.Queue[SSEEvent]] = []
 
     def subscribe(self) -> asyncio.Queue[SSEEvent]:
-        q: asyncio.Queue[SSEEvent] = asyncio.Queue(maxsize=100)
+        q: asyncio.Queue[SSEEvent] = asyncio.Queue(maxsize=500)
         self._subscribers.append(q)
         return q
 

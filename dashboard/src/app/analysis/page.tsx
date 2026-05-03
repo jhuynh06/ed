@@ -1,9 +1,9 @@
-﻿"use client"
+"use client"
 
 import { useState } from 'react'
 import { Topbar } from '@/components/topbar'
 import { Heatmap } from '@/components/heatmap'
-import { useSSE } from '@/lib/use-sse'
+import { useSharedSSE } from '@/lib/sse-context'
 import { AgitationScoreCard } from '@/components/agitation-score-card'
 import { AgitationTimeline } from '@/components/agitation-timeline'
 import { EpisodeList } from '@/components/episode-list'
@@ -17,7 +17,7 @@ const tabs = [
   { id: 'episodes', label: 'Episodes', number: '05' },
 ]
 
-function OverviewPanel({ sse }: { sse: ReturnType<typeof useSSE> }) {
+function OverviewPanel({ sse }: { sse: any }) {
   return (
     <div className="flex flex-col gap-3">
       <AgitationScoreCard agitation={sse.latestAgitation} />
@@ -54,12 +54,12 @@ function OverviewPanel({ sse }: { sse: ReturnType<typeof useSSE> }) {
               <text x="32" y="146" fill="var(--ink-3)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="0.5">SAD</text>
               <text x="168" y="146" fill="var(--ink-3)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="0.5">CALM</text>
               {/* Axis endpoint labels */}
-              <text x="100" y="8" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="1">↑ AROUSAL</text>
+              <text x="100" y="8" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="middle" letterSpacing="1">? AROUSAL</text>
               <text x="190" y="76" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="end">+VAL</text>
-              <text x="10" y="76" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="start">−VAL</text>
+              <text x="10" y="76" fill="var(--ink-2)" fontSize="5.5" fontFamily="var(--font-mono)" textAnchor="start">-VAL</text>
               {/* Trail line */}
               <polyline points="84,99 96,93 110,86 124,80" fill="none" stroke="var(--ink-4)" strokeWidth="1" strokeDasharray="2 2" />
-              {/* Data points oldest → newest */}
+              {/* Data points oldest ? newest */}
               <circle cx="84" cy="99" r="3" fill="var(--ink-4)" opacity="0.35" />
               <circle cx="96" cy="93" r="3.5" fill="var(--ink-4)" opacity="0.5" />
               <circle cx="110" cy="86" r="4" fill="var(--ink-3)" opacity="0.7" />
@@ -116,7 +116,7 @@ function VoicePanel() {
           <div className="stat">
             <div className="stat-label">F0 mean</div>
             <div className="stat-value">118<span className="stat-unit">Hz</span></div>
-            <div className="stat-trend">baseline 122 · −3%</div>
+            <div className="stat-trend">baseline 122 · -3%</div>
           </div>
           <div className="stat">
             <div className="stat-label">F0 std</div>
@@ -131,7 +131,7 @@ function VoicePanel() {
           <div className="stat">
             <div className="stat-label">Shimmer</div>
             <div className="stat-value">3.4<span className="stat-unit">%</span></div>
-            <div className="stat-trend" style={{ color: 'var(--amber)' }}>↑ elevated</div>
+            <div className="stat-trend" style={{ color: 'var(--amber)' }}>? elevated</div>
           </div>
           <div className="stat">
             <div className="stat-label">HNR</div>
@@ -182,7 +182,7 @@ function VoicePanel() {
           <div className="stat">
             <div className="stat-label">Type-token</div>
             <div className="stat-value">0.61</div>
-            <div className="stat-trend" style={{ color: 'var(--sage)' }}>↑ rich</div>
+            <div className="stat-trend" style={{ color: 'var(--sage)' }}>? rich</div>
           </div>
           <div className="stat">
             <div className="stat-label">Filler rate</div>
@@ -241,12 +241,12 @@ function BodyPanel() {
           <div className="stat">
             <div className="stat-label">Squeeze</div>
             <div className="stat-value">0.42<span className="stat-unit">/1</span></div>
-            <div className="stat-trend" style={{ color: 'var(--sage)' }}>↓ softened</div>
+            <div className="stat-trend" style={{ color: 'var(--sage)' }}>? softened</div>
           </div>
           <div className="stat">
             <div className="stat-label">Grip duration</div>
             <div className="stat-value">4:12<span className="stat-unit">m</span></div>
-            <div className="stat-trend" style={{ color: 'var(--sage)' }}>↑ longest wk</div>
+            <div className="stat-trend" style={{ color: 'var(--sage)' }}>? longest wk</div>
           </div>
           <div className="stat">
             <div className="stat-label">Contact %</div>
@@ -361,7 +361,7 @@ function CDRPanel() {
           <div className="text-right">
             <div className="micro">Sum of boxes</div>
             <div className="font-serif text-[26px] leading-none tracking-tight mt-1">2.0</div>
-            <div className="meter-sub mt-1">↓ from 2.5</div>
+            <div className="meter-sub mt-1">? from 2.5</div>
           </div>
         </div>
 
@@ -380,7 +380,7 @@ function CDRPanel() {
             <svg className="w-full h-6" viewBox="0 0 100 24" preserveAspectRatio="none">
               <polyline points="0,14 12,12 24,14 36,16 48,15 60,17 72,16 84,18 96,18" fill="none" stroke="var(--amber)" strokeWidth="1.5" />
             </svg>
-            <div className="font-mono text-[9px] text-[var(--ink-2)]">↘ slow drift</div>
+            <div className="font-mono text-[9px] text-[var(--ink-2)]">? slow drift</div>
           </div>
           <div className="cdr-cell" style={{ '--c': 'var(--rose)' } as React.CSSProperties}>
             <div className="font-mono text-[8.5px] uppercase tracking-widest text-[var(--ink-3)]">Memory</div>
@@ -388,7 +388,7 @@ function CDRPanel() {
             <svg className="w-full h-6" viewBox="0 0 100 24" preserveAspectRatio="none">
               <polyline points="0,12 12,14 24,13 36,16 48,15 60,17 72,16 84,18 96,17" fill="none" stroke="var(--rose)" strokeWidth="1.5" />
             </svg>
-            <div className="font-mono text-[9px] text-[var(--ink-2)]">recurring stories ↑</div>
+            <div className="font-mono text-[9px] text-[var(--ink-2)]">recurring stories ?</div>
           </div>
           <div className="cdr-cell" style={{ '--c': 'var(--sage)' } as React.CSSProperties}>
             <div className="font-mono text-[8.5px] uppercase tracking-widest text-[var(--ink-3)]">Judgment</div>
@@ -450,7 +450,7 @@ function CDRPanel() {
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--rose)]"></span>
               Agitation
             </div>
-            <div className="stat-value">−12<span className="stat-unit">%</span></div>
+            <div className="stat-value">-12<span className="stat-unit">%</span></div>
             <div className="stat-trend" style={{ color: 'var(--sage)' }}>calmer week</div>
           </div>
           <div className="stat">
@@ -469,7 +469,7 @@ function CDRPanel() {
 
 export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState('overview')
-  const sse = useSSE()
+  const sse = useSharedSSE()
 
   const renderPanel = () => {
     switch (activeTab) {
@@ -520,7 +520,7 @@ export default function AnalysisPage() {
                   <span className="chip warm">Story</span>
                 </div>
                 <div className="font-serif text-[12px] leading-tight text-[var(--ink)]">
-                  &quot;Fishing with dad&quot; — 6th time in 14 days, ↑ frequency.
+                  &quot;Fishing with dad&quot; — 6th time in 14 days, ? frequency.
                 </div>
               </div>
               <div className="bg-[var(--paper-3)] border border-[var(--line-soft)] rounded-lg p-2">

@@ -1,31 +1,28 @@
 /**
- * ESP32 SpeakerSerial — Receives PCM audio over USB serial, plays via MAX98357A.
+ * ESP32 SpeakerSerial — Raw PCM over serial, ring buffer, dual-core playback.
  *
- * Protocol (same sync marker as MicrophoneSerial):
- *   [0xED 0x0A] [2-byte LE sample count] [PCM bytes...]
- *   PCM is 16-bit signed LE mono at 16kHz.
+ * Core 1 (loop): reads raw PCM bytes from serial into ring buffer
+ * Core 0 (task): drains ring buffer into I2S
  *
- * Sends "SPEAKER_READY\n" on boot so the bridge can identify this port.
+ * No framing protocol. Just raw 16-bit signed LE mono PCM at 16kHz.
+ * Sends "SPEAKER_READY\n" on boot.
  */
 
 #include <Arduino.h>
 #include <driver/i2s.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/ringbuf.h>
 
-// ===== MAX98357A Pins =====
 #define I2S_BCLK  27
 #define I2S_LRC   26
 #define I2S_DOUT  25
 
-// ===== Config =====
 #define I2S_PORT      I2S_NUM_0
 #define SAMPLE_RATE   16000
 #define BAUD_RATE     921600
-#define MAX_SAMPLES   2048
+#define RING_BUF_SIZE (32 * 1024)
 
-static const uint8_t SYNC_0 = 0xED;
-static const uint8_t SYNC_1 = 0x0A;
-
-uint8_t pcmBuffer[MAX_SAMPLES * 2];
+static RingbufHandle_t ringBuf = NULL;
 
 void i2s_init() {
     i2s_config_t cfg = {
@@ -53,50 +50,42 @@ void i2s_init() {
     i2s_zero_dma_buffer(I2S_PORT);
 }
 
-// Read exactly n bytes from serial, returns false on timeout
-bool serialReadBytes(uint8_t* buf, size_t n, unsigned long timeoutMs = 500) {
-    size_t got = 0;
-    unsigned long start = millis();
-    while (got < n) {
-        if (Serial.available()) {
-            buf[got++] = Serial.read();
-            start = millis();  // reset timeout on each byte
-        } else if (millis() - start > timeoutMs) {
-            return false;
+void i2s_task(void* param) {
+    uint8_t buf[1024];
+    while (true) {
+        size_t itemSize = 0;
+        void* item = xRingbufferReceiveUpTo(ringBuf, &itemSize, pdMS_TO_TICKS(50), sizeof(buf));
+        if (item && itemSize > 0) {
+            // Ensure even byte count for 16-bit samples
+            size_t toWrite = itemSize & ~1;
+            if (toWrite > 0) {
+                size_t written;
+                i2s_write(I2S_PORT, item, toWrite, &written, portMAX_DELAY);
+            }
+            vRingbufferReturnItem(ringBuf, item);
         }
     }
-    return true;
 }
 
 void setup() {
+    Serial.setRxBufferSize(8192);
     Serial.begin(BAUD_RATE);
     i2s_init();
-    // Identify this board to the bridge
+
+    ringBuf = xRingbufferCreate(RING_BUF_SIZE, RINGBUF_TYPE_BYTEBUF);
+    xTaskCreatePinnedToCore(i2s_task, "i2s", 4096, NULL, 1, NULL, 0);
+
     Serial.println("SPEAKER_READY");
 }
 
 void loop() {
-    // Wait for sync marker
-    if (Serial.available() < 1) return;
+    int avail = Serial.available();
+    if (avail <= 0) return;
 
-    uint8_t b = Serial.read();
-    if (b != SYNC_0) return;
-
-    uint8_t b2;
-    if (!serialReadBytes(&b2, 1, 100) || b2 != SYNC_1) return;
-
-    // Read sample count
-    uint8_t countBuf[2];
-    if (!serialReadBytes(countBuf, 2)) return;
-    uint16_t sampleCount = countBuf[0] | (countBuf[1] << 8);
-
-    if (sampleCount == 0 || sampleCount > MAX_SAMPLES) return;
-
-    // Read PCM data
-    uint32_t byteCount = sampleCount * 2;
-    if (!serialReadBytes(pcmBuffer, byteCount)) return;
-
-    // Play through I2S
-    size_t written;
-    i2s_write(I2S_PORT, pcmBuffer, byteCount, &written, portMAX_DELAY);
+    uint8_t buf[1024];
+    int toRead = min(avail, (int)sizeof(buf));
+    int got = Serial.readBytes(buf, toRead);
+    if (got > 0) {
+        xRingbufferSend(ringBuf, buf, got, 0);
+    }
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useSSE } from '@/lib/use-sse'
+import { useSharedSSE } from '@/lib/sse-context'
 import { useBearStatus } from '@/lib/use-status'
 import type { SensorUpdate, Transcription } from '@/lib/sse-types'
 import Link from 'next/link'
@@ -10,7 +10,7 @@ import { Mic, Play, Pause, Plus, Check, X, Send, ArrowRight, Trash2 } from 'luci
 import { getChatMessages, sendChatMessage, clearChat } from '@/lib/api'
 import { NotificationFeed } from '@/components/notification-feed'
 
-/* ─── Topbar ─────────────────────────────────────────────── */
+/* â”€â”€â”€ Topbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function Topbar({ connected }: { connected: boolean }) {
   const { active, toggleSidebar } = usePatient()
   const [timeLabel, setTimeLabel] = useState('')
@@ -35,29 +35,29 @@ function Topbar({ connected }: { connected: boolean }) {
           {active?.avatar ?? 'T'}
         </button>
         <div>
-          <div className="micro">Caregiver dashboard{active ? ` · ${active.name}` : ''}</div>
+          <div className="micro">Caregiver dashboard{active ? ` Â· ${active.name}` : ''}</div>
           <h1 className="font-serif text-[24px] font-normal tracking-tight leading-tight m-0">
-            {active?.companion ?? 'Theodore'} <span className="text-[var(--ink-3)] font-light">· {timeLabel || 'loading'}</span>
+            {active?.companion ?? 'Theodore'} <span className="text-[var(--ink-3)] font-light">Â· {timeLabel || 'loading'}</span>
           </h1>
         </div>
       </div>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <div className={`pip ${connected ? 'on' : 'off'}`} />
-          <span className="micro">{connected ? 'Connected · 14 s' : 'Offline'}</span>
+          <span className="micro">{connected ? 'Connected Â· 14 s' : 'Offline'}</span>
         </div>
         <Link
           href="/analysis"
           className="text-[var(--ink-2)] no-underline py-1 px-3 rounded-full border border-[var(--line)] bg-[var(--paper-2)] font-mono text-[11px] tracking-wider uppercase hover:text-[var(--ink)] hover:border-[var(--ink-4)] transition-colors"
         >
-          Full analysis →
+          Full analysis â†’
         </Link>
       </div>
     </div>
   )
 }
 
-/* ─── Voices Card ────────────────────────────────────────── */
+/* â”€â”€â”€ Voices Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function VoicesCard() {
   const [playing, setPlaying] = useState(false)
 
@@ -77,7 +77,7 @@ function VoicesCard() {
       <div>
         <div className="micro mb-1.5">Active voice</div>
         <div className="sunken p-3 flex items-center justify-between">
-          <span className="text-[13px]">Soft male (default) · 0:18</span>
+          <span className="text-[13px]">Soft male (default) Â· 0:18</span>
           <button className="btn-ghost p-1" onClick={() => setPlaying(!playing)}>
             {playing ? <Pause size={14} /> : <Play size={14} />}
           </button>
@@ -89,14 +89,14 @@ function VoicesCard() {
       </button>
 
       <div>
-        <div className="micro mb-1.5">Saved · 2</div>
+        <div className="micro mb-1.5">Saved Â· 2</div>
         <div className="space-y-1.5">
           <div className="sunken p-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="pip on" />
               <div>
                 <div className="text-[13px] font-medium">Soft male (default)</div>
-                <div className="micro">0:18 · built-in</div>
+                <div className="micro">0:18 Â· built-in</div>
               </div>
             </div>
             <span className="tag">Active</span>
@@ -106,7 +106,7 @@ function VoicesCard() {
               <div className="pip idle" />
               <div>
                 <div className="text-[13px] font-medium">Margie&apos;s voice</div>
-                <div className="micro">0:12 · recorded</div>
+                <div className="micro">0:12 Â· recorded</div>
               </div>
             </div>
           </div>
@@ -116,12 +116,12 @@ function VoicesCard() {
   )
 }
 
-/* ─── Medications Card ───────────────────────────────────── */
+/* â”€â”€â”€ Medications Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function MedicationsCard() {
   const meds = [
-    { id: '1', name: 'Donepezil', freq: '1×/day', weekly: '7×/wk', done: 1, total: 1, status: 'done' },
-    { id: '2', name: 'Memantine', freq: '2×/day', weekly: '7×/wk', done: 1, total: 2, status: 'partial' },
-    { id: '3', name: 'Vitamin D', freq: '1×/day', weekly: '3×/wk', done: 0, total: 1, status: 'pending' },
+    { id: '1', name: 'Donepezil', freq: '1Ã—/day', weekly: '7Ã—/wk', done: 1, total: 1, status: 'done' },
+    { id: '2', name: 'Memantine', freq: '2Ã—/day', weekly: '7Ã—/wk', done: 1, total: 2, status: 'partial' },
+    { id: '3', name: 'Vitamin D', freq: '1Ã—/day', weekly: '3Ã—/wk', done: 0, total: 1, status: 'pending' },
   ]
 
   return (
@@ -145,12 +145,12 @@ function MedicationsCard() {
               'border-2 border-[var(--line)] text-[var(--ink-4)]'
             }`}>
               {med.status === 'done' && <Check size={13} />}
-              {med.status === 'partial' && <span className="text-[10px] font-mono font-bold">½</span>}
+              {med.status === 'partial' && <span className="text-[10px] font-mono font-bold">Â½</span>}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-2">
                 <span className="font-serif text-[15px]">{med.name}</span>
-                <span className="micro">{med.freq} · {med.weekly}</span>
+                <span className="micro">{med.freq} Â· {med.weekly}</span>
               </div>
               <div className="micro mt-0.5">
                 {med.done}/{med.total} today
@@ -164,7 +164,7 @@ function MedicationsCard() {
   )
 }
 
-/* ─── Body Status (Horse Plushie) ────────────────────────── */
+/* â”€â”€â”€ Body Status (Horse Plushie) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function BodyStatusCard({ sensor }: { sensor: SensorUpdate | null }) {
   const hasData = sensor !== null
   const pads = hasData ? sensor.touch_active_pads : []
@@ -236,19 +236,19 @@ function BodyStatusCard({ sensor }: { sensor: SensorUpdate | null }) {
   )
 }
 
-/* ─── Today's Insight Card (expanded) ────────────────────── */
+/* â”€â”€â”€ Today's Insight Card (expanded) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function TodaysInsightCard() {
   return (
     <div className="card p-4 flex flex-col gap-3 h-full">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="micro">★ Today&apos;s insight · Wed, May 1</span>
+          <span className="micro">â˜… Today&apos;s insight Â· Wed, May 1</span>
         </div>
         <span className="chip warm">Warm</span>
       </div>
 
       <p className="font-serif text-[14.5px] leading-relaxed text-[var(--ink)] m-0">
-        Ed held the cushion for over four minutes this morning — his longest contact this week.
+        Ed held the cushion for over four minutes this morning â€” his longest contact this week.
         His tone has been warm with several spontaneous stories, and yesterday&apos;s restlessness has
         eased noticeably. He mentioned Margie twice and asked about the grandkids unprompted.
       </p>
@@ -256,11 +256,11 @@ function TodaysInsightCard() {
       <div className="flex gap-6">
         <div>
           <div className="micro mb-0.5">Topics</div>
-          <span className="text-[13px]">Fishing · Margie</span>
+          <span className="text-[13px]">Fishing Â· Margie</span>
         </div>
         <div>
           <div className="micro mb-0.5">Mood arc</div>
-          <span className="text-[13px]">Warm → calm</span>
+          <span className="text-[13px]">Warm â†’ calm</span>
         </div>
         <div>
           <div className="micro mb-0.5">Engagement</div>
@@ -271,7 +271,7 @@ function TodaysInsightCard() {
       <div className="flex gap-6 pt-2 border-t border-[var(--line-soft)]">
         <div>
           <div className="micro mb-0.5">Episodes today</div>
-          <span className="text-[13px]">2 · both resolved</span>
+          <span className="text-[13px]">2 Â· both resolved</span>
         </div>
         <div>
           <div className="micro mb-0.5">Sundowning</div>
@@ -279,14 +279,14 @@ function TodaysInsightCard() {
         </div>
         <div>
           <div className="micro mb-0.5">CDR total</div>
-          <span className="text-[13px]">2.0 · mild stage</span>
+          <span className="text-[13px]">2.0 Â· mild stage</span>
         </div>
       </div>
     </div>
   )
 }
 
-/* ─── Voice Transmit Card ─────────────────────────────────── */
+/* â”€â”€â”€ Voice Transmit Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function VoiceTransmitCard({ latestTranscription }: { latestTranscription: Transcription | null }) {
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -324,7 +324,7 @@ function VoiceTransmitCard({ latestTranscription }: { latestTranscription: Trans
         </div>
         <div className="micro mt-0.5">
           {recording
-            ? `${mins}:${secs.toString().padStart(2, '0')} · live`
+            ? `${mins}:${secs.toString().padStart(2, '0')} Â· live`
             : 'Hold to speak through the horse'
           }
         </div>
@@ -355,7 +355,7 @@ function VoiceTransmitCard({ latestTranscription }: { latestTranscription: Trans
   )
 }
 
-/* ─── Chat Log ───────────────────────────────────────────── */
+/* â”€â”€â”€ Chat Log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface ChatMsg {
   sender: string
   content: string
@@ -439,7 +439,7 @@ function ChatLog({ transcriptions }: { transcriptions: Transcription[] }) {
         {merged.map((msg, i) => (
           <div key={i}>
             <div className="micro mb-1">
-              {senderLabel(msg.sender)} · {fmtTime(msg.created_at)}
+              {senderLabel(msg.sender)} Â· {fmtTime(msg.created_at)}
               {msg.emotion && <span className="chip calm ml-1.5 text-[10px]">{msg.emotion}</span>}
             </div>
             <div
@@ -478,9 +478,9 @@ function ChatLog({ transcriptions }: { transcriptions: Transcription[] }) {
   )
 }
 
-/* ─── Main Dashboard ─────────────────────────────────────── */
+/* â”€â”€â”€ Main Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function Dashboard() {
-  const sse = useSSE()
+  const sse = useSharedSSE()
   const bearConnected = useBearStatus()
   const connected = sse.connected && bearConnected
 
@@ -518,7 +518,7 @@ export default function Dashboard() {
         </div>
 
         {/* Center bottom: Live notifications */}
-        <div className="min-h-0 overflow-hidden" style={{ gridArea: 'mid-bot' }}>
+        <div className="min-h-0 overflow-auto" style={{ gridArea: 'mid-bot' }}>
           <NotificationFeed notifications={sse.notifications} />
         </div>
 
