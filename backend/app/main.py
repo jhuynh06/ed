@@ -423,6 +423,74 @@ async def audio_websocket(ws: WebSocket):
         logger.info("AudioBridge disconnected")
 
 
+# ── WebSocket — Speaker Stream via SpeakerSerialBridge ───────────────
+
+_speaker_ws: WebSocket | None = None
+_speaker_queue: asyncio.Queue[bytes] = asyncio.Queue()
+
+
+async def send_tts_to_speaker(pcm_chunks: list[bytes]) -> None:
+    """Queue TTS PCM chunks for the speaker bridge."""
+    for chunk in pcm_chunks:
+        await _speaker_queue.put(chunk)
+
+
+@app.websocket("/ws/speaker")
+async def speaker_websocket(ws: WebSocket):
+    """Streams TTS audio to the SpeakerSerialBridge."""
+    global _speaker_ws
+    await ws.accept()
+    _speaker_ws = ws
+    logger.info("SpeakerBridge connected")
+
+    try:
+        while True:
+            # Wait for TTS audio in the queue
+            chunk = await _speaker_queue.get()
+            try:
+                await ws.send_bytes(chunk)
+            except Exception:
+                # Re-queue on failure so audio isn't lost
+                await _speaker_queue.put(chunk)
+                break
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    finally:
+        _speaker_ws = None
+        logger.info("SpeakerBridge disconnected")
+
+
+@app.post("/speak")
+async def speak_endpoint(request: Request):
+    """Trigger TTS and stream to the speaker ESP32.
+
+    Body: {"text": "Hello Margaret", "voice_id": null}
+    """
+    body = await request.json()
+    text = body.get("text", "")
+    voice_id = body.get("voice_id")
+    if not text:
+        raise HTTPException(400, "text is required")
+
+    if _speaker_ws is None:
+        raise HTTPException(503, "Speaker not connected")
+
+    from app.tts import stream_tts, stream_tts_with_voice
+
+    chunks_sent = 0
+    total_bytes = 0
+    tts_fn = stream_tts_with_voice(text, voice_id) if voice_id else stream_tts(text)
+    async for chunk in tts_fn:
+        await _speaker_queue.put(chunk)
+        chunks_sent += 1
+        total_bytes += len(chunk)
+
+    return {"status": "ok", "chunks": chunks_sent, "bytes": total_bytes}
+
+
+
+
+
 # ── SSE — Dashboard live feed ────────────────────────────────────────
 
 @app.get("/sse/events")

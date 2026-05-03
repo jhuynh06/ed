@@ -23,7 +23,7 @@ import websockets
 BAUD_RATE = 921600
 BACKEND_WS_URL = "ws://localhost:8000/ws/audio"
 SAMPLE_RATE = 16000
-SYNC_MARKER = bytes([0xED, 0xAU])
+SYNC_MARKER = bytes([0xED, 0x0A])
 
 # ── Auto-detect ESP32 COM port ────────────────────────────────────────
 

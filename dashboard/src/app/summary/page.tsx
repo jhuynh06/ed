@@ -23,7 +23,7 @@ export default function SummaryPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/summary/daily')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/summary/daily`)
       .then(r => {
         if (!r.ok) throw new Error(`${r.status}`)
         return r.json()

@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { usePatient } from '@/lib/patient-context'
 import { Mic, Play, Pause, Plus, Check, X, Send, ArrowRight, Trash2 } from 'lucide-react'
 import { getChatMessages, sendChatMessage, clearChat } from '@/lib/api'
+import { NotificationFeed } from '@/components/notification-feed'
 
 /* ─── Topbar ─────────────────────────────────────────────── */
 function Topbar({ connected }: { connected: boolean }) {
@@ -516,9 +517,9 @@ export default function Dashboard() {
           <VoiceTransmitCard latestTranscription={latestTranscription} />
         </div>
 
-        {/* Center bottom: Today's Insight */}
+        {/* Center bottom: Live notifications */}
         <div className="min-h-0 overflow-hidden" style={{ gridArea: 'mid-bot' }}>
-          <TodaysInsightCard />
+          <NotificationFeed notifications={sse.notifications} />
         </div>
 
         {/* Right: Chat log spans both rows */}

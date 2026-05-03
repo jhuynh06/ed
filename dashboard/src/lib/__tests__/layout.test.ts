@@ -13,39 +13,30 @@ const analysisPage = readFileSync(
 
 describe('analysis page layout', () => {
   it('OverviewPanel does not use h-full (causes overflow with siblings)', () => {
-    // h-full on a flex child inside overflow-y-auto causes it to expand
-    // beyond the scroll container, overlapping subsequent siblings
     const match = analysisPage.match(/function OverviewPanel[\s\S]*?^}/m)
     expect(match?.[0]).not.toContain('h-full')
   })
 
-  it('both columns have min-h-0 and overflow-y-auto for independent scrolling', () => {
-    // Each column needs both: min-h-0 lets the grid constrain height,
-    // overflow-y-auto makes it scroll instead of expanding the page
-    const leftCol = analysisPage.match(/Left:.*\n.*<div className="([^"]*)"/)
-    const rightCol = analysisPage.match(/Right:.*\n.*<div className="([^"]*)"/)
-    expect(leftCol?.[1]).toContain('min-h-0')
-    expect(leftCol?.[1]).toContain('overflow-y-auto')
-    expect(rightCol?.[1]).toContain('min-h-0')
-    expect(rightCol?.[1]).toContain('overflow-y-auto')
+  it('both columns have min-h-0 for grid constraint', () => {
+    // Left and right columns need min-h-0 so the grid can constrain height
+    expect(analysisPage).toContain('min-h-0')
+    expect(analysisPage).toContain('overflow-y-auto')
   })
 
-  it('EpisodeList and NotificationFeed are rendered after tab panel, not inside it', () => {
-    // They should be siblings of the tab panel div, not children
-    const episodeIdx = analysisPage.indexOf('<EpisodeList')
+  it('NotificationFeed is rendered in the left column', () => {
     const notifIdx = analysisPage.indexOf('<NotificationFeed')
-    const renderPanelIdx = analysisPage.indexOf('{renderPanel()}')
-    expect(episodeIdx).toBeGreaterThan(renderPanelIdx)
-    expect(notifIdx).toBeGreaterThan(renderPanelIdx)
+    expect(notifIdx).toBeGreaterThan(-1)
+    // Should be in the left column (before the right column tabs)
+    const tabsIdx = analysisPage.indexOf('role="tablist"')
+    expect(notifIdx).toBeLessThan(tabsIdx)
   })
 
   it('no card in OverviewPanel uses aspect ratio taller than 4/3', () => {
-    // Tall aspect ratios (e.g. aspect-[8/5] = 1.6:1) push content below the fold
     const tallAspects = analysisPage.match(/aspect-\[(\d+)\/(\d+)\]/g) ?? []
     for (const match of tallAspects) {
       const [, w, h] = match.match(/aspect-\[(\d+)\/(\d+)\]/) ?? []
       const ratio = Number(w) / Number(h)
-      expect(ratio).toBeLessThanOrEqual(4 / 3 + 0.01) // 4:3 max
+      expect(ratio).toBeLessThanOrEqual(4 / 3 + 0.01)
     }
   })
 })

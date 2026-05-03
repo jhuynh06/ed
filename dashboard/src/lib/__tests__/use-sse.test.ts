@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 /**
  * Integration test for useSSE hook.
  * Uses a mock EventSource to simulate SSE events.
@@ -80,15 +82,15 @@ describe('useSSE', () => {
     expect(result.current.agitationHistory[2].score).toBe(70)
   })
 
-  it('caps agitation history at 120 entries', () => {
+  it('caps agitation history at 360 entries', () => {
     const { result } = renderHook(() => useSSE())
     act(() => {
       MockEventSource.instance?.onopen?.()
-      for (let i = 0; i < 130; i++) {
+      for (let i = 0; i < 400; i++) {
         MockEventSource.instance?.emit({ type: 'agitation_update', timestamp: 1000 + i, score: i % 100, risk: 'low' })
       }
     })
-    expect(result.current.agitationHistory).toHaveLength(120)
+    expect(result.current.agitationHistory).toHaveLength(360)
   })
 
   it('adds episodes on episode_start and episode_end', () => {
