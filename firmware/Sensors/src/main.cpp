@@ -161,9 +161,9 @@ namespace Touch {
     {"front_right", 12, false, false, 0, 0},
     {"back_left",   14, false, false, 0, 0},
     {"back_right",  27, false, false, 0, 0},
-    {"upper_back",  26, false, false, 0, 0},
-    {"lower_back",  25, false, false, 0, 0},
-    {"upper_chest", 33, false, false, 0, 0},
+    {"upper_back",   2, false, false, 0, 0},
+    {"lower_back",   4, false, false, 0, 0},
+    {"upper_chest", 15, false, false, 0, 0},
     {"lower_chest", 32, false, false, 0, 0}
   };
 

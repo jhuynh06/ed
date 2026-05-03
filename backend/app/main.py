@@ -53,6 +53,7 @@ from app.models import (
     EpisodeStartEvent,
     NotificationEvent,
     SensorUpdateEvent,
+    TranscriptionEvent,
     VitalsUpdateEvent,
 )
 from app.sse import event_bus
@@ -223,77 +224,57 @@ async def bear_websocket(ws: WebSocket):
                 continue
 
             if msg_type == "sensor_data":
-                result = await graph.ainvoke({"raw_sensor": data})
+                imu_raw = data.get("imu", {})
+                touch_raw = data.get("touch", {})
 
-                score: float = result.get("agitation_score", 0.0)
-                risk: str = result.get("risk_level", "low")
+                # Publish sensor data to dashboard
+                await event_bus.publish(SensorUpdateEvent(
+                    imu_jerk=imu_raw.get("jerk_magnitude", 0.0),
+                    imu_stillness_s=imu_raw.get("stillness_duration_s", 0.0),
+                    imu_hug=imu_raw.get("hug_detected", False),
+                    imu_rocking=imu_raw.get("rocking_detected", False),
+                    imu_fall=imu_raw.get("fall_detected", False),
+                    touch_any=touch_raw.get("any_contact", False),
+                    touch_squeeze=touch_raw.get("squeeze_intensity", 0.0),
+                    touch_petting=touch_raw.get("petting_detected", False),
+                    touch_grip_s=touch_raw.get("grip_duration_s", 0.0),
+                    touch_active_pads=touch_raw.get("active_pads", []),
+                ))
 
-                # Publish live agitation update
+                # Compute agitation locally (no API calls)
+                jerk = imu_raw.get("jerk_magnitude", 0.0)
+                vocal_arousal = _latest_audio_result.arousal if _latest_audio_result and _latest_audio_result.speech_detected else 0.0
+                touch_absent = 1.0 if not touch_raw.get("any_contact", False) else 0.0
+                score = min(100.0, (
+                    0.30 * min(jerk / 2.0, 1.0) * 100 +
+                    0.40 * vocal_arousal * 100 +
+                    0.30 * touch_absent * min(touch_raw.get("grip_duration_s", 0) / 300.0, 1.0) * 100
+                ))
+                risk = "high" if score >= 60 else "medium" if score >= 30 else "low"
+
                 _last_status.update(score=score, risk=risk, updated_at=time.time())
                 await event_bus.publish(AgitationUpdateEvent(
                     timestamp=time.time(), score=score, risk=risk,
                 ))
 
-                # Publish raw sensor snapshot for dashboard body-status
-                snap = result.get("sensor_snapshot")
-                if snap:
-                    await event_bus.publish(SensorUpdateEvent(
-                        imu_jerk=snap.imu.jerk_magnitude,
-                        imu_stillness_s=snap.imu.stillness_duration_s,
-                        imu_hug=snap.imu.hug_detected,
-                        imu_rocking=snap.imu.rocking_detected,
-                        imu_fall=snap.imu.fall_detected,
-                        touch_any=snap.touch.any_contact,
-                        touch_squeeze=snap.touch.squeeze_intensity,
-                        touch_petting=snap.touch.petting_detected,
-                        touch_grip_s=snap.touch.grip_duration_s,
-                        touch_active_pads=snap.touch.active_pads,
-                        hr_valid=snap.hr.valid,
-                        hr_bpm=snap.hr.bpm,
-                    ))
-
                 # Episode lifecycle
                 if risk in ("medium", "high") and active_episode_id is None:
-                    active_episode_id = result.get("episode_id") or str(uuid.uuid4())
+                    active_episode_id = str(uuid.uuid4())
                     agitation_before = score
                     episode_start_time = time.time()
                     await event_bus.publish(EpisodeStartEvent(
                         id=active_episode_id, timestamp=time.time(), agitation=score,
                     ))
-
                 elif risk == "low" and active_episode_id is not None:
-                    mar = result.get("mar_result") or {}
                     await event_bus.publish(EpisodeEndEvent(
                         id=active_episode_id,
                         duration=time.time() - (episode_start_time or time.time()),
                         peak=agitation_before or score,
-                        outcome=mar.get("final_notification", "calm restored"),
+                        outcome="calm restored",
                     ))
                     active_episode_id = None
                     agitation_before = None
                     episode_start_time = None
-
-                # Notification
-                mar = result.get("mar_result")
-                if mar and mar.get("approved"):
-                    await event_bus.publish(NotificationEvent(
-                        message=mar["final_notification"],
-                        priority="warning",
-                        mar_trace=mar.get("debate_trace"),
-                    ))
-
-                # Send commands back to bear
-                for action in result.get("executed_actions", []):
-                    await ws.send_json(action)
-
-                # Stream TTS audio chunks to bear
-                for chunks in result.get("tts_chunks", []):
-                    for chunk in chunks:
-                        await ws.send_json({
-                            "type": "audio_stream",
-                            "payload": base64.b64encode(chunk).decode(),
-                        })
-                    await ws.send_json({"type": "audio_stream_end"})
 
             elif msg_type == "audio_chunk":
                 # Audio pipeline handled separately — no-op here for now
@@ -309,6 +290,7 @@ async def bear_websocket(ws: WebSocket):
 # Audio pipeline instance (stateful for VAD)
 _audio_pipeline: AudioPipeline | None = None
 _audio_bridge_connected: bool = False
+_latest_audio_result: AudioResult | None = None  # shared with perception node
 
 
 def _get_audio_pipeline() -> AudioPipeline:
@@ -362,9 +344,18 @@ async def audio_websocket(ws: WebSocket):
                 )
                 
                 # Push through audio pipeline (VAD + inference when speech ends)
-                result = pipeline.push_frame(samples)
+                try:
+                    result = pipeline.push_frame(samples)
+                except Exception as e:
+                    logger.warning(f"Audio pipeline error: {e}")
+                    result = None
                 
+                if result:
+                    global _latest_audio_result
+                    _latest_audio_result = result
+
                 if result and result.speech_detected:
+                  try:
                     # Speech segment processed — log and publish
                     logger.info(
                         f"Audio: '{result.transcription[:50]}...' "
@@ -373,15 +364,30 @@ async def audio_websocket(ws: WebSocket):
                     )
                     
                     # Publish transcription event for dashboard
-                    await event_bus.publish({
-                        "type": "transcription",
-                        "text": result.transcription,
-                        "emotion": result.dominant_emotion,
-                        "valence": result.valence,
-                        "arousal": result.arousal,
-                        "language": result.language,
-                        "timestamp": time.time(),
-                    })
+                    # Build analytics kwargs from audio result
+                    _ak = {}
+                    if result.acoustic:
+                        a = result.acoustic
+                        _ak.update(f0_mean=a.f0_mean, f0_std=a.f0_std, jitter=a.jitter,
+                                   shimmer=a.shimmer, hnr=a.hnr, speaking_rate=a.speaking_rate,
+                                   pause_rate=a.pause_rate)
+                    if result.nlp:
+                        n = result.nlp
+                        _ak.update(type_token_ratio=n.type_token_ratio, filler_rate=n.filler_rate,
+                                   mean_utterance_length=n.mean_utterance_length, coherence=n.topic_coherence)
+                    if result.cdr:
+                        c = result.cdr
+                        _ak.update(cdr_memory=c.memory, cdr_orientation=c.orient,
+                                   cdr_communication=c.commun, cdr_judgment=c.judgment,
+                                   cdr_sum_of_boxes=c.total)
+                    await event_bus.publish(TranscriptionEvent(
+                        text=result.transcription,
+                        emotion=result.dominant_emotion,
+                        valence=result.valence,
+                        arousal=result.arousal,
+                        language=result.language,
+                        **_ak,
+                    ))
                     
                     # If high arousal detected, could trigger agitation update
                     if result.arousal > 0.6:
@@ -389,6 +395,8 @@ async def audio_websocket(ws: WebSocket):
                             message=f"Elevated vocal arousal detected: {result.dominant_emotion}",
                             priority="info",
                         ))
+                  except Exception as e:
+                    logger.warning(f"Audio publish error: {e}")
                     
             elif "text" in message:
                 # JSON control message
@@ -475,6 +483,14 @@ async def trigger_mock_scenario():
                 touch_petting=score < 35, touch_grip_s=grip_s,
                 touch_active_pads=pads,
             ))
+
+            if score > 40:
+                await event_bus.publish(TranscriptionEvent(
+                    text="I don't know where I am..." if score > 60 else "Where is everyone?",
+                    emotion="fearful" if score > 60 else "sad",
+                    arousal=score / 100,
+                    valence=-(score / 100),
+                ))
 
             if risk in ("medium", "high") and not episode_started:
                 episode_started = True

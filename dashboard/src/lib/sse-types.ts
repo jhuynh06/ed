@@ -67,6 +67,16 @@ export const SensorUpdateSchema = z.object({
   hr_bpm: z.number(),
 });
 
+export const TranscriptionSchema = z.object({
+  type: z.literal("transcription"),
+  text: z.string(),
+  emotion: z.string(),
+  valence: z.number(),
+  arousal: z.number(),
+  language: z.string().optional(),
+  timestamp: z.number(),
+});
+
 export const SSEEventSchema = z.discriminatedUnion("type", [
   AgitationUpdateSchema,
   EpisodeStartSchema,
@@ -74,6 +84,7 @@ export const SSEEventSchema = z.discriminatedUnion("type", [
   NotificationSchema,
   VitalsUpdateSchema,
   SensorUpdateSchema,
+  TranscriptionSchema,
 ]);
 
 // ── TypeScript types (inferred from Zod) ─────────────────────────────
@@ -85,6 +96,7 @@ export type CriticVerdict = z.infer<typeof CriticVerdictSchema>;
 export type Notification = z.infer<typeof NotificationSchema>;
 export type VitalsUpdate = z.infer<typeof VitalsUpdateSchema>;
 export type SensorUpdate = z.infer<typeof SensorUpdateSchema>;
+export type Transcription = z.infer<typeof TranscriptionSchema>;
 export type SSEEvent = z.infer<typeof SSEEventSchema>;
 
 export type RiskLevel = "low" | "medium" | "high";
@@ -115,4 +127,5 @@ export interface UseSSEReturn {
   notifications: Notification[];
   latestVitals: VitalsUpdate | null;
   latestSensor: SensorUpdate | null;
+  transcriptions: Transcription[];
 }

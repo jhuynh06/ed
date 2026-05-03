@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from 'react'
-import { SSEEventSchema, type UseSSEReturn, type SSEEvent, type AgitationUpdate, type EpisodeStart, type EpisodeEnd, type Notification, type VitalsUpdate, type SensorUpdate } from './sse-types'
+import { SSEEventSchema, type UseSSEReturn, type SSEEvent, type AgitationUpdate, type EpisodeStart, type EpisodeEnd, type Notification, type VitalsUpdate, type SensorUpdate, type Transcription } from './sse-types'
 
 export function useSSE(): UseSSEReturn {
   const [connected, setConnected] = useState(false)
@@ -11,6 +11,7 @@ export function useSSE(): UseSSEReturn {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [latestVitals, setLatestVitals] = useState<VitalsUpdate | null>(null)
   const [latestSensor, setLatestSensor] = useState<SensorUpdate | null>(null)
+  const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
 
   const handleEvent = useCallback((event: SSEEvent) => {
     switch (event.type) {
@@ -43,6 +44,10 @@ export function useSSE(): UseSSEReturn {
 
       case 'sensor_update':
         setLatestSensor(event)
+        break
+
+      case 'transcription':
+        setTranscriptions(prev => [...prev, event].slice(-100))
         break
     }
   }, [])
@@ -110,5 +115,6 @@ export function useSSE(): UseSSEReturn {
     notifications,
     latestVitals,
     latestSensor,
+    transcriptions,
   }
 }

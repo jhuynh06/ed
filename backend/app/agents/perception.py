@@ -24,6 +24,7 @@ from app.models import (
     HRState,
     IMUFeatures,
     SensorSnapshot,
+    VocalEmotion,
     TouchState,
 )
 
@@ -101,10 +102,13 @@ def _build_sensor_snapshot(raw: dict) -> SensorSnapshot:
         active_pads=touch_raw.get("active_pads", []),
         grip_duration_s=touch_raw.get("grip_duration_s", 0.0),
     )
+    ve_raw = raw.get("vocal_emotion")
+    vocal_emotion = VocalEmotion(**ve_raw) if isinstance(ve_raw, dict) else None
     return SensorSnapshot(
         imu=imu,
         hr=hr,
         touch=touch,
+        vocal_emotion=vocal_emotion,
         speech_text=raw.get("speech_text"),
     )
 
@@ -142,23 +146,25 @@ async def perception_node(state: AgentState) -> AgentState:
             "agitation_score": 100.0,
         }
 
-    prompt = _format_features(snap)
-    cache_key = _quantize_key(snap)
-
-    if cache_key in _cache:
-        _cache.move_to_end(cache_key)
-        semantic_text = _cache[cache_key]
-    else:
-        response = await _client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=150,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        semantic_text = response.content[0].text.strip()
-        _cache[cache_key] = semantic_text
-        if len(_cache) > _CACHE_MAX:
-            _cache.popitem(last=False)
+    # Local semantic text generation (no Claude API call)
+    parts = []
+    if snap.imu.stillness_duration_s > 60:
+        parts.append(f"Still for {snap.imu.stillness_duration_s:.0f}s.")
+    if snap.imu.jerk_magnitude > 0.5:
+        parts.append("Restless movement detected.")
+    if snap.imu.hug_detected:
+        parts.append("Holding the bear closely.")
+    if snap.imu.rocking_detected:
+        parts.append("Rocking motion detected.")
+    if snap.touch.any_contact:
+        parts.append(f"Touching {len(snap.touch.active_pads)} pads, squeeze {snap.touch.squeeze_intensity:.1f}.")
+    if snap.touch.petting_detected:
+        parts.append("Petting the bear gently.")
+    if snap.speech_text:
+        parts.append(f'Said: "{snap.speech_text}"')
+    if snap.vocal_emotion and snap.vocal_emotion.arousal > 0.5:
+        parts.append(f"Voice sounds {snap.vocal_emotion.dominant_emotion}.")
+    semantic_text = " ".join(parts) if parts else "Calm and quiet." 
 
     return {
         **state,

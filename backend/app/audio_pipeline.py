@@ -40,7 +40,7 @@ VAD_CHECK_INTERVAL = 5    # run VAD every N frames (160ms) instead of every fram
 SPEECH_END_FRAMES = 8     # frames of trailing silence before firing inference (~256ms)
 
 # ── Local Whisper config ─────────────────────────────────────────────
-WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "tiny.en")
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "base.en")
 WHISPER_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 WHISPER_FP16 = WHISPER_DEVICE == "cuda"
 SILENCE_THRESHOLD = 0.01

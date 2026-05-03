@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSSE } from '@/lib/use-sse'
 import { useBearStatus } from '@/lib/use-status'
-import type { SensorUpdate } from '@/lib/sse-types'
+import type { SensorUpdate, Transcription } from '@/lib/sse-types'
 import Link from 'next/link'
 import { usePatient } from '@/lib/patient-context'
 import { Mic, Play, Pause, Plus, Check, X, Send, ArrowRight, Trash2 } from 'lucide-react'
@@ -286,22 +286,21 @@ function TodaysInsightCard() {
 }
 
 /* ─── Voice Transmit Card ─────────────────────────────────── */
-function VoiceTransmitCard() {
+function VoiceTransmitCard({ latestTranscription }: { latestTranscription: Transcription | null }) {
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
+
+  const isRecent = latestTranscription && (Date.now() / 1000 - latestTranscription.timestamp) < 10
 
   const handleToggle = () => {
     if (recording) {
       setRecording(false)
       setSeconds(0)
-      // In production: stop MediaRecorder, send audio via WebSocket to bear
     } else {
       setRecording(true)
-      // In production: start MediaRecorder, stream PCM to backend → bear speaker
     }
   }
 
-  // Timer display
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60
 
@@ -329,6 +328,12 @@ function VoiceTransmitCard() {
           }
         </div>
       </div>
+      {isRecent && (
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-[var(--sage)] animate-pulse" />
+          <span className="chip calm">{latestTranscription.emotion}</span>
+        </div>
+      )}
       {recording && (
         <div className="flex items-center gap-0.5 h-5">
           {Array.from({ length: 12 }, (_, i) => (
@@ -355,9 +360,10 @@ interface ChatMsg {
   content: string
   msg_type: string
   created_at: number
+  emotion?: string
 }
 
-function ChatLog() {
+function ChatLog({ transcriptions }: { transcriptions: Transcription[] }) {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [sending, setSending] = useState(false)
@@ -371,7 +377,19 @@ function ChatLog() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { const id = setInterval(load, 5000); return () => clearInterval(id) }, [load])
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length])
+
+  const merged = useMemo(() => {
+    const transcriptionMsgs: ChatMsg[] = transcriptions.map(t => ({
+      sender: 'patient',
+      content: t.text,
+      msg_type: 'transcription',
+      created_at: t.timestamp,
+      emotion: t.emotion,
+    }))
+    return [...messages, ...transcriptionMsgs].sort((a, b) => a.created_at - b.created_at)
+  }, [messages, transcriptions])
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [merged.length])
 
   const handleSend = async () => {
     const text = message.trim()
@@ -393,6 +411,12 @@ function ChatLog() {
 
   const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
 
+  const senderLabel = (sender: string) => {
+    if (sender === 'patient') return 'Patient'
+    if (sender === 'theodore') return 'Theodore'
+    return 'You'
+  }
+
   return (
     <div className="card flex flex-col h-full min-h-0">
       <div className="p-4 pb-3 border-b border-[var(--line-soft)] flex items-center justify-between">
@@ -401,7 +425,7 @@ function ChatLog() {
           <img src="/message.png" alt="Chat" width={18} height={18} draggable={false} />
           <div>
             <span className="font-serif text-[15px] font-medium">Chat log</span>
-            <span className="micro ml-2">{messages.length} messages</span>
+            <span className="micro ml-2">{merged.length} messages</span>
           </div>
         </div>
         <button className="btn btn-icon btn-ghost" aria-label="Delete conversation" onClick={handleClear}>
@@ -411,16 +435,19 @@ function ChatLog() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-        {messages.map((msg, i) => (
+        {merged.map((msg, i) => (
           <div key={i}>
             <div className="micro mb-1">
-              {msg.sender === 'theodore' ? 'Theodore' : 'You'} · {fmtTime(msg.created_at)}
+              {senderLabel(msg.sender)} · {fmtTime(msg.created_at)}
+              {msg.emotion && <span className="chip calm ml-1.5 text-[10px]">{msg.emotion}</span>}
             </div>
             <div
               className={`inline-block px-4 py-3 rounded-2xl max-w-[85%] font-serif text-[14.5px] leading-relaxed ${
                 msg.sender === 'user'
                   ? 'bg-[var(--ink)] text-[var(--paper)] rounded-br-md'
-                  : 'bg-[var(--paper-3)] text-[var(--ink)] rounded-bl-md'
+                  : msg.sender === 'patient'
+                    ? 'bg-[var(--paper-3)] text-[var(--ink)] rounded-bl-md border border-[var(--line)]'
+                    : 'bg-[var(--paper-3)] text-[var(--ink)] rounded-bl-md'
               }`}
               style={msg.sender === 'user' ? { marginLeft: 'auto', display: 'block', textAlign: 'left', float: 'right', clear: 'both' } : { clear: 'both' }}
             >
@@ -456,6 +483,10 @@ export default function Dashboard() {
   const bearConnected = useBearStatus()
   const connected = sse.connected && bearConnected
 
+  const latestTranscription = sse.transcriptions.length > 0
+    ? sse.transcriptions[sse.transcriptions.length - 1]
+    : null
+
   return (
     <div className="relative z-10 h-screen max-w-[1560px] mx-auto px-3.5 py-2.5 grid grid-rows-[auto_1fr] gap-2.5">
       <Topbar connected={connected} />
@@ -482,7 +513,7 @@ export default function Dashboard() {
           <div className="flex-1 min-h-0">
             <BodyStatusCard sensor={sse.latestSensor} />
           </div>
-          <VoiceTransmitCard />
+          <VoiceTransmitCard latestTranscription={latestTranscription} />
         </div>
 
         {/* Center bottom: Today's Insight */}
@@ -492,7 +523,7 @@ export default function Dashboard() {
 
         {/* Right: Chat log spans both rows */}
         <div className="min-h-0" style={{ gridArea: 'chat' }}>
-          <ChatLog />
+          <ChatLog transcriptions={sse.transcriptions} />
         </div>
       </div>
     </div>

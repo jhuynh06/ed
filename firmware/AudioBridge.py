@@ -219,7 +219,7 @@ async def main():
     backend_task = asyncio.create_task(connect_to_backend())
 
     # Start ESP32 WebSocket server
-    async with websockets.serve(handle_esp32, "0.0.0.0", ESP32_PORT):
+    async with websockets.serve(handle_esp32, "0.0.0.0", ESP32_PORT, ping_interval=None, ping_timeout=None, max_size=None):
         try:
             await asyncio.Future()  # Run forever
         except asyncio.CancelledError:

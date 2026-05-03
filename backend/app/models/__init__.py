@@ -180,6 +180,36 @@ class SensorUpdateEvent(BaseModel):
     hr_bpm: int = 0
 
 
+class TranscriptionEvent(BaseModel):
+    type: Literal["transcription"] = "transcription"
+    text: str
+    emotion: str = "neutral"
+    valence: float = 0.0
+    arousal: float = 0.0
+    language: str = "en"
+    timestamp: float = Field(default_factory=time.time)
+    # Acoustic features (optional — present when audio pipeline extracts them)
+    f0_mean: float | None = None
+    f0_std: float | None = None
+    jitter: float | None = None
+    shimmer: float | None = None
+    hnr: float | None = None
+    speaking_rate: float | None = None
+    pause_rate: float | None = None
+    # NLP features
+    type_token_ratio: float | None = None
+    filler_rate: float | None = None
+    mean_utterance_length: float | None = None
+    coherence: float | None = None
+    # CDR scores
+    cdr_memory: float | None = None
+    cdr_orientation: float | None = None
+    cdr_communication: float | None = None
+    cdr_judgment: float | None = None
+    cdr_sum_of_boxes: float | None = None
+
+
+
 class VitalsUpdateEvent(BaseModel):
     type: Literal["vitals_update"] = "vitals_update"
     bpm: int
